@@ -47,3 +47,17 @@ def test_glands_table_and_summary_row():
     assert {"image", "gland", "size_px2", "row_min", "col_max", "p_malignant"} <= set(t.columns)
     s = summary_row(gl, "testX", true_label=1)
     assert s["n_glands"] == 3 and s["n_glands_malignant"] == 2 and s["correct"] is True and s["true_grade"] == "malignant"
+
+
+def test_figure_works_without_annotation_or_grade(tmp_path):
+    img = np.random.randint(0, 255, (100, 120, 3), np.uint8)
+    labels = np.zeros((100, 120), np.int32); labels[10:40, 10:40] = 1
+    out = tmp_path / "noannot.png"
+    pred, p = render_figure(img, None, labels, [dict(g, id=i + 1) for i, g in enumerate(G)], None, "unlabelled", out)
+    assert out.exists() and pred == 1
+
+
+def test_summary_row_without_grade():
+    from glandnet.visualize import summary_row
+    s = summary_row([dict(G[0], id=1)], "x", None)
+    assert s["true_grade"] is None and s["correct"] is None

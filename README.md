@@ -22,9 +22,9 @@ For every tissue image you get **a figure** and **a table**.
 
 ![Example result: malignant tissue](assets/pipeline_testA_59.png)
 
-*How to read the figure.* Top row: the original image and the outline drawn by human experts (the "answer key"). Middle row, left: the glands the model found.
+*How to read the figure.* Top row: the original image and **the gland mask the model predicts** (white = gland). If the image comes with an expert's hand-drawn outline, the title also shows how closely the two overlap (Dice); with a new, unannotated image that line simply isn't there. Middle row, left: the glands the model found, each in its own colour.
 Middle row, right: each gland in a box — **green means the model thinks it is benign, red means it thinks it is malignant** — with the gland's number and its probability of malignancy.
-The image gets one overall verdict: the average of all its glands. Bottom: a table with the numbers behind every box.
+The image gets one overall verdict: the average of all its glands (and, when the dataset provides it, the pathologist's grade for comparison). Bottom: a table with the numbers behind every box.
 
 The same table is saved as a spreadsheet (`results/examples/<image>_glands.csv`), so you can use it without opening the picture:
 
@@ -34,7 +34,7 @@ The same table is saved as a spreadsheet (`results/examples/<image>_glands.csv`)
 | 3 | 45,856 | (0, 386, 282, 673) | 1.00 | malignant |
 | … | … | … | … | … |
 
-And `results/examples/summary.csv` has one line per image — how many glands were found, how many were called malignant, the image verdict, the pathologist's grade, and whether the model got it right:
+And `results/examples/summary.csv` has one line per image — how many glands were found, how many were called malignant and the image verdict. For images that come with a pathologist's grade, it also says whether the model got it right (otherwise those columns are left empty):
 
 | image | glands found | called malignant | verdict | pathologist's grade | correct? |
 |---|---|---|---|---|---|
@@ -103,7 +103,8 @@ glandnet-classify  --data-root data --pred-dir predictions --out results   # 3. 
 glandnet-visualize --data-root data --seg-checkpoint models/unet4l.pth \
                    --cls-checkpoint models/gland_classifier_effb0.pth \
                    --names testA_59 testB_11 --out assets --tables results/examples   # 4. figures + tables
-pytest -q                                                    # 24 automated tests
+glandnet-visualize ... --images my_slide.png ...             # also works on any new image, no annotation needed
+pytest -q                                                    # 26 automated tests
 ```
 
 **Data:** the *GlaS* challenge dataset (Warwick-QU, 165 colon-tissue images with expert outlines). It is not included here; download it from the challenge page.
