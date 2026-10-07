@@ -3,3 +3,5 @@ testA_33,11,0,0.0087,benign,benign,True
 testA_59,10,10,0.952,malignant,malignant,True
 testB_11,6,5,0.8384,malignant,malignant,True
 testA_44,9,5,0.5318,malignant,benign,False
+testB_14,7,3,0.4705,malignant,malignant,True
+testA_38,5,2,0.348,benign,malignant,False

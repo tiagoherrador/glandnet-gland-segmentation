@@ -4,8 +4,31 @@
     "gland_acc": 0.7699346405228759,
     "n_glands": 765,
     "n_images": 85,
-    "image_acc": 0.9176470588235294,
-    "image_f1": 0.9230769230769231,
+    "image_threshold": 0.4,
+    "image_acc": 0.8823529411764706,
+    "image_f1": 0.8979591836734694,
+    "image_at_threshold": {
+      "threshold": 0.4,
+      "sensitivity": 0.9166666666666666,
+      "specificity": 0.8378378378378378,
+      "precision": 0.88,
+      "accuracy": 0.8823529411764706,
+      "tp": 44,
+      "fn": 4,
+      "fp": 6,
+      "tn": 31
+    },
+    "image_at_reference_0.5": {
+      "threshold": 0.5,
+      "sensitivity": 0.875,
+      "specificity": 0.972972972972973,
+      "precision": 0.9767441860465116,
+      "accuracy": 0.9176470588235294,
+      "tp": 42,
+      "fn": 6,
+      "fp": 1,
+      "tn": 36
+    },
     "image_auc": 0.9617117117117118,
     "image_auc_ci95": [
       0.9160624410191884,
@@ -15,11 +38,34 @@
   "test": {
     "gt_A": {
       "gland_auc": 0.9587131050767415,
-      "gland_acc": 0.9059180576631259,
+      "gland_acc": 0.9028831562974203,
       "n_glands": 659,
       "n_images": 60,
-      "image_acc": 0.9666666666666667,
-      "image_f1": 0.9629629629629629,
+      "image_threshold": 0.4,
+      "image_acc": 0.9833333333333333,
+      "image_f1": 0.9818181818181818,
+      "image_at_threshold": {
+        "threshold": 0.4,
+        "sensitivity": 1.0,
+        "specificity": 0.9696969696969697,
+        "precision": 0.9642857142857143,
+        "accuracy": 0.9833333333333333,
+        "tp": 27,
+        "fn": 0,
+        "fp": 1,
+        "tn": 32
+      },
+      "image_at_reference_0.5": {
+        "threshold": 0.5,
+        "sensitivity": 0.9629629629629629,
+        "specificity": 0.9696969696969697,
+        "precision": 0.9629629629629629,
+        "accuracy": 0.9666666666666667,
+        "tp": 26,
+        "fn": 1,
+        "fp": 1,
+        "tn": 32
+      },
       "image_auc": 0.9988776655443322,
       "image_auc_ci95": [
         0.9932659932659933,
@@ -28,11 +74,34 @@
     },
     "gt_B": {
       "gland_auc": 0.9788011695906433,
-      "gland_acc": 0.9361702127659575,
+      "gland_acc": 0.925531914893617,
       "n_glands": 94,
       "n_images": 20,
+      "image_threshold": 0.4,
       "image_acc": 1.0,
       "image_f1": 1.0,
+      "image_at_threshold": {
+        "threshold": 0.4,
+        "sensitivity": 1.0,
+        "specificity": 1.0,
+        "precision": 1.0,
+        "accuracy": 1.0,
+        "tp": 16,
+        "fn": 0,
+        "fp": 0,
+        "tn": 4
+      },
+      "image_at_reference_0.5": {
+        "threshold": 0.5,
+        "sensitivity": 1.0,
+        "specificity": 1.0,
+        "precision": 1.0,
+        "accuracy": 1.0,
+        "tp": 16,
+        "fn": 0,
+        "fp": 0,
+        "tn": 4
+      },
       "image_auc": 1.0,
       "image_auc_ci95": [
         1.0,
@@ -41,11 +110,34 @@
     },
     "gt_A+B": {
       "gland_auc": 0.9677465437056555,
-      "gland_acc": 0.9096945551128818,
+      "gland_acc": 0.9057104913678619,
       "n_glands": 753,
       "n_images": 80,
-      "image_acc": 0.975,
-      "image_f1": 0.9767441860465116,
+      "image_threshold": 0.4,
+      "image_acc": 0.9875,
+      "image_f1": 0.9885057471264368,
+      "image_at_threshold": {
+        "threshold": 0.4,
+        "sensitivity": 1.0,
+        "specificity": 0.972972972972973,
+        "precision": 0.9772727272727273,
+        "accuracy": 0.9875,
+        "tp": 43,
+        "fn": 0,
+        "fp": 1,
+        "tn": 36
+      },
+      "image_at_reference_0.5": {
+        "threshold": 0.5,
+        "sensitivity": 0.9767441860465116,
+        "specificity": 0.972972972972973,
+        "precision": 0.9767441860465116,
+        "accuracy": 0.975,
+        "tp": 42,
+        "fn": 1,
+        "fp": 1,
+        "tn": 36
+      },
       "image_auc": 0.9993714644877436,
       "image_auc_ci95": [
         0.996249941369606,
@@ -53,41 +145,110 @@
       ]
     },
     "pred_A": {
-      "gland_auc": 0.8899893377561899,
-      "gland_acc": 0.7973199329983249,
-      "n_glands": 597,
+      "gland_auc": 0.9144522022153393,
+      "gland_acc": 0.8054711246200608,
+      "n_glands": 658,
       "n_images": 60,
-      "image_acc": 0.9333333333333333,
-      "image_f1": 0.9230769230769231,
-      "image_auc": 0.9910213243546577,
+      "image_threshold": 0.4,
+      "image_acc": 0.9666666666666667,
+      "image_f1": 0.9629629629629629,
+      "image_at_threshold": {
+        "threshold": 0.4,
+        "sensitivity": 0.9629629629629629,
+        "specificity": 0.9696969696969697,
+        "precision": 0.9629629629629629,
+        "accuracy": 0.9666666666666667,
+        "tp": 26,
+        "fn": 1,
+        "fp": 1,
+        "tn": 32
+      },
+      "image_at_reference_0.5": {
+        "threshold": 0.5,
+        "sensitivity": 0.9259259259259259,
+        "specificity": 0.9696969696969697,
+        "precision": 0.9615384615384616,
+        "accuracy": 0.95,
+        "tp": 25,
+        "fn": 2,
+        "fp": 1,
+        "tn": 32
+      },
+      "image_auc": 0.9955106621773289,
       "image_auc_ci95": [
-        0.9682658049353702,
+        0.982202447163515,
         1.0
       ]
     },
     "pred_B": {
-      "gland_auc": 0.8462450592885375,
-      "gland_acc": 0.7518796992481203,
-      "n_glands": 133,
+      "gland_auc": 0.8687499999999999,
+      "gland_acc": 0.7651515151515151,
+      "n_glands": 132,
       "n_images": 20,
+      "image_threshold": 0.4,
       "image_acc": 0.95,
-      "image_f1": 0.967741935483871,
-      "image_auc": 0.984375,
+      "image_f1": 0.9696969696969697,
+      "image_at_threshold": {
+        "threshold": 0.4,
+        "sensitivity": 1.0,
+        "specificity": 0.75,
+        "precision": 0.9411764705882353,
+        "accuracy": 0.95,
+        "tp": 16,
+        "fn": 0,
+        "fp": 1,
+        "tn": 3
+      },
+      "image_at_reference_0.5": {
+        "threshold": 0.5,
+        "sensitivity": 0.9375,
+        "specificity": 1.0,
+        "precision": 1.0,
+        "accuracy": 0.95,
+        "tp": 15,
+        "fn": 1,
+        "fp": 0,
+        "tn": 4
+      },
+      "image_auc": 1.0,
       "image_auc_ci95": [
-        0.90625,
+        1.0,
         1.0
       ]
     },
     "pred_A+B": {
-      "gland_auc": 0.8891704374057315,
-      "gland_acc": 0.7890410958904109,
-      "n_glands": 730,
+      "gland_auc": 0.9174642175414958,
+      "gland_acc": 0.7987341772151899,
+      "n_glands": 790,
       "n_images": 80,
-      "image_acc": 0.9375,
-      "image_f1": 0.9397590361445783,
-      "image_auc": 0.9918290383406663,
+      "image_threshold": 0.4,
+      "image_acc": 0.9625,
+      "image_f1": 0.9655172413793104,
+      "image_at_threshold": {
+        "threshold": 0.4,
+        "sensitivity": 0.9767441860465116,
+        "specificity": 0.9459459459459459,
+        "precision": 0.9545454545454546,
+        "accuracy": 0.9625,
+        "tp": 42,
+        "fn": 1,
+        "fp": 2,
+        "tn": 35
+      },
+      "image_at_reference_0.5": {
+        "threshold": 0.5,
+        "sensitivity": 0.9302325581395349,
+        "specificity": 0.972972972972973,
+        "precision": 0.975609756097561,
+        "accuracy": 0.95,
+        "tp": 40,
+        "fn": 3,
+        "fp": 1,
+        "tn": 36
+      },
+      "image_auc": 0.9949717159019484,
       "image_auc_ci95": [
-        0.9737483552631581,
+        0.9832338309961315,
         1.0
       ]
     }

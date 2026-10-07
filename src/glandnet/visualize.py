@@ -1,6 +1,7 @@
 """Figures of the full pipeline: segmentation -> gland instances -> benign/malignant call per gland.
 
-Gland boxes are drawn **green = predicted benign** and **red = predicted malignant**, numbered and labelled with p(malignant).
+Gland boxes are drawn **green = predicted benign** and **red = predicted malignant** (p >= 0.4, a deliberately cautious
+cut-off that favours catching malignant cases; see docs/decision_threshold.md), numbered and labelled with p(malignant).
 Besides the figure, every image gets a results table (one row per gland: size, bounding box, probability, call), shown under
 the figure and saved as CSV, plus one `summary.csv` with the image-level verdicts.
 
@@ -23,7 +24,7 @@ import pandas as pd
 import torch
 from matplotlib.patches import Rectangle
 
-from .classifier import crops_from_labels, load_classifier, predict, read_grades
+from .classifier import DECISION_THRESHOLD, crops_from_labels, load_classifier, predict, predict_instances, read_grades
 from .data import IMG_SIZE, load_image, load_mask, normalize, resize_image
 from .metrics import dice_pixel
 from .model import UNet4L, pick_device
@@ -35,10 +36,7 @@ GRADE_NAMES = {0: "benign", 1: "malignant"}
 
 def run_pipeline(img, seg_model, cls_model, device, params):
     """RGB image -> (instance labels at original size, list of per-gland dicts with bbox and prob_malignant)."""
-    H, W = img.shape[:2]
-    x = normalize(resize_image(img)).unsqueeze(0).to(device)
-    labels512 = gland_instances(segment(predict_prob_map(seg_model, x)[0], params["thr"], params["min_size"], params["footprint"]))
-    labels = cv2.resize(labels512.astype(np.int32), (W, H), interpolation=cv2.INTER_NEAREST)
+    labels = predict_instances(img, seg_model, device, params)
     glands = crops_from_labels(img, labels, "", 0, 0, "pred")
     if glands:
         for i, (g, p) in enumerate(zip(glands, predict(cls_model, glands, device)), start=1):
@@ -46,7 +44,7 @@ def run_pipeline(img, seg_model, cls_model, device, params):
     return labels, glands
 
 
-def image_verdict(glands, thr: float = 0.5):
+def image_verdict(glands, thr: float = DECISION_THRESHOLD):
     """Image-level call = mean gland probability (same rule as the evaluation)."""
     if not glands:
         return None, float("nan")
@@ -54,7 +52,7 @@ def image_verdict(glands, thr: float = 0.5):
     return int(p >= thr), p
 
 
-def glands_table(glands, name: str, thr: float = 0.5) -> pd.DataFrame:
+def glands_table(glands, name: str, thr: float = DECISION_THRESHOLD) -> pd.DataFrame:
     """One row per detected gland: size, bounding box (pixels), malignancy probability and call."""
     rows = []
     for g in glands:
@@ -66,7 +64,7 @@ def glands_table(glands, name: str, thr: float = 0.5) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def summary_row(glands, name: str, true_label: int | None = None, thr: float = 0.5) -> dict:
+def summary_row(glands, name: str, true_label: int | None = None, thr: float = DECISION_THRESHOLD) -> dict:
     pred, p = image_verdict(glands, thr)
     return {"image": name, "n_glands": len(glands), "n_glands_malignant": int(sum(g["prob_malignant"] >= thr for g in glands)),
             "mean_p_malignant": round(p, 4), "image_prediction": None if pred is None else GRADE_NAMES[pred],
@@ -77,7 +75,7 @@ def summary_row(glands, name: str, true_label: int | None = None, thr: float = 0
 DISPLAY_MIN_AREA = 400  # px; tiny fragments are hidden in the figure only (the image verdict uses every gland)
 
 
-def draw_gland_boxes(ax, glands, thr: float = 0.5, show_prob: bool = True, lw: float = 1.8,
+def draw_gland_boxes(ax, glands, thr: float = DECISION_THRESHOLD, show_prob: bool = True, lw: float = 1.8,
                      min_area: int = DISPLAY_MIN_AREA):
     for g in glands:
         if g.get("area", min_area) < min_area:
@@ -90,7 +88,7 @@ def draw_gland_boxes(ax, glands, thr: float = 0.5, show_prob: bool = True, lw: f
                     bbox=dict(facecolor=color, edgecolor="none", pad=1.0, alpha=0.85))
 
 
-def draw_results_table(ax, glands, name, thr: float = 0.5, max_rows: int = 10, min_area: int = DISPLAY_MIN_AREA):
+def draw_results_table(ax, glands, name, thr: float = DECISION_THRESHOLD, max_rows: int = 10, min_area: int = DISPLAY_MIN_AREA):
     shown = sorted([g for g in glands if g["area"] >= min_area], key=lambda g: -g["area"])[:max_rows]
     ax.axis("off")
     if not shown:
@@ -108,7 +106,7 @@ def draw_results_table(ax, glands, name, thr: float = 0.5, max_rows: int = 10, m
                  f"(full table in the CSV file)", fontsize=10, pad=4)
 
 
-def render_figure(img, gt_mask, labels, glands, true_label, name, out_path, thr: float = 0.5,
+def render_figure(img, gt_mask, labels, glands, true_label, name, out_path, thr: float = DECISION_THRESHOLD,
                   min_area: int = DISPLAY_MIN_AREA):
     """`gt_mask` (expert annotation) and `true_label` (pathologist's grade) are optional (None)."""
     pred_label, p_img = image_verdict(glands, thr)

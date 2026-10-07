@@ -44,3 +44,25 @@ def test_crops_one_per_gland_and_small_ones_dropped():
     lab = np.zeros((100, 100), np.int32); lab[10:40, 10:40] = 1; lab[60:90, 60:90] = 2; lab[0:3, 0:3] = 3
     crops = crops_from_labels(img, lab, "x", 1, 5, "gt")
     assert len(crops) == 2 and crops[0]["crop"].shape == (224, 224, 3)
+
+
+def test_operating_point_counts_and_rates():
+    from glandnet.classifier import operating_point
+    y = [1, 1, 1, 1, 0, 0, 0, 0]
+    p = [0.9, 0.45, 0.35, 0.2, 0.3, 0.1, 0.55, 0.05]
+    o = operating_point(y, p, 0.4)  # called malignant: 0.9, 0.45, 0.55
+    assert (o["tp"], o["fn"], o["fp"], o["tn"]) == (2, 2, 1, 3)
+    assert o["sensitivity"] == 0.5 and o["specificity"] == 0.75 and o["precision"] == 2 / 3
+
+
+def test_lower_threshold_never_lowers_sensitivity():
+    from glandnet.classifier import threshold_sweep
+    rng = np.random.default_rng(0)
+    img = pd.DataFrame({"label": rng.integers(0, 2, 200), "p": rng.random(200)})
+    sw = threshold_sweep(img, thresholds=(0.2, 0.3, 0.4, 0.5, 0.6))
+    assert (np.diff(sw["sensitivity"]) <= 1e-12).all() and (np.diff(sw["specificity"]) >= -1e-12).all()
+
+
+def test_default_threshold_is_the_cautious_one():
+    from glandnet.classifier import DECISION_THRESHOLD
+    assert DECISION_THRESHOLD == 0.4

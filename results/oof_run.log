@@ -1,0 +1,69 @@
+device=mps train glands=765 test(gt)=753 test(pred)=730
+patients shared between train and test: [1, 2, 3, 4, 5, 7, 9, 10, 11, 13, 15]
+fold 1/5: train imgs=83 val imgs=2
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+  epoch 1/12 loss=0.8619
+  epoch 2/12 loss=0.3136
+  epoch 3/12 loss=0.1703
+  epoch 4/12 loss=0.1067
+  epoch 5/12 loss=0.0853
+  epoch 6/12 loss=0.0449
+  epoch 7/12 loss=0.0531
+  epoch 8/12 loss=0.0604
+  epoch 9/12 loss=0.0612
+  epoch 10/12 loss=0.0528
+  epoch 11/12 loss=0.0394
+  epoch 12/12 loss=0.0227
+fold 2/5: train imgs=72 val imgs=13
+  epoch 1/12 loss=1.0465
+  epoch 2/12 loss=0.2340
+  epoch 3/12 loss=0.0994
+  epoch 4/12 loss=0.1404
+  epoch 5/12 loss=0.1125
+  epoch 6/12 loss=0.0348
+  epoch 7/12 loss=0.0594
+  epoch 8/12 loss=0.0526
+  epoch 9/12 loss=0.0414
+  epoch 10/12 loss=0.0458
+  epoch 11/12 loss=0.0547
+  epoch 12/12 loss=0.0725
+fold 3/5: train imgs=57 val imgs=28
+  epoch 1/12 loss=1.0205
+  epoch 2/12 loss=0.3352
+  epoch 3/12 loss=0.2190
+  epoch 4/12 loss=0.1119
+  epoch 5/12 loss=0.0740
+  epoch 6/12 loss=0.0473
+  epoch 7/12 loss=0.0312
+  epoch 8/12 loss=0.0326
+  epoch 9/12 loss=0.0241
+  epoch 10/12 loss=0.0228
+  epoch 11/12 loss=0.0348
+  epoch 12/12 loss=0.0157
+fold 4/5: train imgs=60 val imgs=25
+  epoch 1/12 loss=0.8948
+  epoch 2/12 loss=0.2548
+  epoch 3/12 loss=0.1614
+  epoch 4/12 loss=0.1454
+  epoch 5/12 loss=0.1150
+  epoch 6/12 loss=0.0874
+  epoch 7/12 loss=0.0823
+  epoch 8/12 loss=0.0641
+  epoch 9/12 loss=0.0159
+  epoch 10/12 loss=0.0369
+  epoch 11/12 loss=0.0511
+  epoch 12/12 loss=0.0300
+fold 5/5: train imgs=68 val imgs=17
+  epoch 1/12 loss=0.8308
+  epoch 2/12 loss=0.2260
+  epoch 3/12 loss=0.1813
+  epoch 4/12 loss=0.0954
+  epoch 5/12 loss=0.0961
+  epoch 6/12 loss=0.0571
+  epoch 7/12 loss=0.0328
+  epoch 8/12 loss=0.0294
+  epoch 9/12 loss=0.0314
+  epoch 10/12 loss=0.0417
+  epoch 11/12 loss=0.0092
+  epoch 12/12 loss=0.0165
+CV (pooled out-of-fold): {'gland_auc': 0.8761191747302859, 'gland_acc': 0.7699346405228759, 'n_glands': 765, 'n_images': 85, 'image_threshold': 0.4, 'image_acc': 0.8823529411764706, 'image_f1': 0.8979591836734694, 'image_at_threshold': {'threshold': 0.4, 'sensitivity': 0.9166666666666666, 'specificity': 0.8378378378378378, 'precision': 0.88, 'accuracy': 0.8823529411764706, 'tp': 44, 'fn': 4, 'fp': 6, 'tn': 31}, 'image_at_reference_0.5': {'threshold': 0.5, 'sensitivity': 0.875, 'specificity': 0.972972972972973, 'precision': 0.9767441860465116, 'accuracy': 0.9176470588235294, 'tp': 42, 'fn': 6, 'fp': 1, 'tn': 36}, 'image_auc': 0.9617117117117118, 'image_auc_ci95': [0.9160624410191884, 0.9937177400468384]}

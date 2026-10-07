@@ -41,7 +41,9 @@ And `results/examples/summary.csv` has one line per image — how many glands we
 | testA_33 | 11 | 0 | benign | benign | yes |
 | testA_59 | 10 | 10 | malignant | malignant | yes |
 | testB_11 | 6 | 5 | malignant | malignant | yes |
-| testA_44 | 9 | 5 | malignant | benign | **no** |
+| testA_44 | 9 | 5 | malignant | benign | **no** (false alarm) |
+| testB_14 | 7 | 3 | malignant | malignant | yes (a close call, see below) |
+| testA_38 | 5 | 2 | benign | malignant | **no** (missed cancer) |
 
 More examples — a healthy image and a malignant one from the second test set:
 
@@ -50,11 +52,19 @@ More examples — a healthy image and a malignant one from the second test set:
 | ![benign](assets/pipeline_testA_33.png) | ![malignant](assets/pipeline_testB_11.png) |
 
 ### When it gets it wrong
-`testA_44` is benign, but the model calls it malignant. Looking at the picture, the glands were found correctly — the mistake is in judging them: the model marks two large, elongated glands as malignant.
+With the cautious cut-off we use (see [why 0.4](#why-the-cut-off-is-04-and-not-05)), **3 of the 80 test images were wrong: 1 missed cancer and 2 false alarms.**
 
-![A mistake](assets/pipeline_testA_44.png)
+**A false alarm.** `testA_44` is benign, but the model calls it malignant. The glands were found correctly — the mistake is in judging them: the model marks two large, elongated glands as malignant.
 
-Out of 80 test images, 5 were wrong: 4 malignant images called benign (their probability was just under the 50 % cut-off, between 0.42 and 0.48) and 1 benign image called malignant.
+![A false alarm](assets/pipeline_testA_44.png)
+
+**A missed cancer.** `testA_38` is malignant, but only 2 of its 5 glands are flagged and the image average (0.35) stays below the cut-off. This is the kind of error we most want to avoid.
+
+![A missed cancer](assets/pipeline_testA_38.png)
+
+**A close call that the cautious cut-off rescued.** In `testB_14`, three glands score 1.00 but the image average is only 0.47: with the usual 0.5 cut-off this cancer would have been missed; with 0.4 it is caught.
+
+![A rescued case](assets/pipeline_testB_14.png)
 
 ## How well does it work?
 
@@ -67,15 +77,33 @@ All numbers below are on images the model **never saw during training** (the 80 
 | Set B (20 images: 16 malignant, 4 benign — harder) | 0.81 | 0.69 |
 
 ### Judging the glands
-| | Can it tell malignant from benign images? (AUC) | Images called correctly |
-|---|---|---|
-| During development (cross-validation on training images) | 0.96 | 92 % |
-| Test images, glands found by the model | **0.99** | **94 %** (75 of 80) |
+| | Ranks malignant above benign (AUC) | Malignant images caught | Benign images correctly cleared | Images called correctly |
+|---|---|---|---|---|
+| During development (cross-validation on training images) | 0.96 | 92 % (44 of 48) | 84 % (31 of 37) | 88 % |
+| Test images, glands found by the model | **0.995** | **98 %** (42 of 43) | **95 %** (35 of 37) | **96 %** (77 of 80) |
+
+The "images called correctly" use the cut-off of 0.4 (below). The development row is the fairer preview of real-life performance: the test row is a bit flattering because we chose the cut-off after seeing earlier test results.
 
 **What the metrics mean**
 - **Dice (0 to 1)** — how much the model's outline overlaps the experts' outline. 1 is a perfect copy; 0.9 is very close.
 - **F1 (0 to 1)** — counts glands one by one: did the model find this gland, and did it avoid inventing ones that aren't there? It is stricter than Dice because a missed or merged gland hurts.
 - **AUC (0.5 to 1)** — if you pick one malignant and one benign image at random, how often does the model give the malignant one the higher score? 0.5 is a coin flip, 1.0 is always right.
+- **Sensitivity** — of all the malignant images, the share the model catches. *Missing a cancer is the costly mistake, so this is the number we care most about.*
+- **Specificity** — of all the benign images, the share the model correctly clears. When it is low, healthy images get flagged and someone has to double-check them.
+
+## Why the cut-off is 0.4 and not 0.5
+
+The model gives each gland (and each image) a probability of being malignant, and we have to decide above which probability we raise a flag. The usual choice is 0.5. **We use 0.4 on purpose**, because the two kinds of mistakes are not equally serious:
+
+- a **missed cancer** (false negative) can delay a diagnosis and its treatment;
+- a **false alarm** (false positive) only means a pathologist takes another look.
+
+So we would rather flag a little too much than miss something. A lower cut-off makes the model more suspicious:
+
+![Trade-off between catching cancers and false alarms](assets/threshold_tradeoff.png)
+
+In cross-validation, going from 0.5 to 0.4 catches **2 more cancers out of 48** at the price of **5 more false alarms out of 37 healthy images**. It reduces missed cancers; it does not eliminate them.
+Full numbers, the honest caveats and how to change the cut-off are in **[docs/decision_threshold.md](docs/decision_threshold.md)**.
 
 ## Things to keep in mind (honest limits)
 
@@ -83,7 +111,8 @@ All numbers below are on images the model **never saw during training** (the 80 
 - **Small test sets.** 60 and 20 images are few; a couple of mistakes move the numbers noticeably.
 - **The "malignant / benign" label is for the whole image, not each gland.** The dataset only says whether an image is benign or malignant, so every gland in a malignant image is trained as "malignant", even if some of them look normal. That is why individual glands are judged less accurately (AUC 0.89) than whole images (0.99).
 - **Neighbouring glands that touch can merge** into one big blob, which lowers the gland-by-gland score (F1).
-- **The 50 % cut-off was not tuned on the test set** (that would be cheating). It happens to be slightly cautious: all but one of the mistakes are malignant images called benign.
+- **The 0.4 cut-off was a judgement call**, chosen to favour catching cancers (see above). Because it was picked after seeing earlier test results, the test numbers are somewhat optimistic; the cross-validation numbers are the fairer guide.
+- **The image verdict is an average of its glands**, so a few very suspicious glands can be diluted by many normal ones.
 
 ## How it works (the short version)
 
@@ -99,12 +128,12 @@ pip install -e ".[train,dev]"
 
 glandnet-train     --data-root data --out-dir models        # 1. train the gland finder
 glandnet-eval      --data-root data --checkpoint models/unet4l.pth   # 2. measure it
-glandnet-classify  --data-root data --pred-dir predictions --out results   # 3. train/test the benign-vs-malignant judge
+glandnet-classify  --data-root data --out results --seg-checkpoint models/unet4l.pth   # 3. train + test the benign-vs-malignant judge
 glandnet-visualize --data-root data --seg-checkpoint models/unet4l.pth \
                    --cls-checkpoint models/gland_classifier_effb0.pth \
                    --names testA_59 testB_11 --out assets --tables results/examples   # 4. figures + tables
 glandnet-visualize ... --images my_slide.png ...             # also works on any new image, no annotation needed
-pytest -q                                                    # 26 automated tests
+pytest -q                                                    # 30 automated tests
 ```
 
 **Data:** the *GlaS* challenge dataset (Warwick-QU, 165 colon-tissue images with expert outlines). It is not included here; download it from the challenge page.
@@ -125,20 +154,24 @@ Model weights (`*.pth`) are also not included.
 | Test B | 20 | 0.805 | 0.693 | 0.891 | 40.8 |
 | Test A+B | 80 | 0.866 | 0.755 | 0.908 | 37.1 |
 
-**Classifier protocol.** Labels from `Grade.csv` (image grade applied to each gland), trained on the train split only (765 gland crops), 5-fold `StratifiedGroupKFold` by patient with out-of-fold predictions pooled, 12 epochs, threshold 0.5, test evaluated once.
+**Classifier protocol.** Labels from `Grade.csv` (image grade applied to each gland), trained on the train split only (765 gland crops), 5-fold `StratifiedGroupKFold` by patient with out-of-fold predictions pooled, 12 epochs.
+An image is called malignant when the mean gland probability is ≥ `DECISION_THRESHOLD = 0.4` (see [docs/decision_threshold.md](docs/decision_threshold.md)). On test, glands are detected by the **full package pipeline** (U-Net with the validation-selected parameters → connected components → classifier).
 
-| Setting | Images | Image AUC (95 % bootstrap CI) | Image acc. | Gland AUC |
-|---|---|---|---|---|
-| CV on train (out-of-fold) | 85 | 0.962 (0.916–0.994) | 0.92 | 0.876 |
-| Test A+B · ground-truth glands | 80 | 0.999 (0.996–1.0) | 0.975 | 0.968 |
-| Test A+B · model-found glands (730 vs 753 true) | 80 | 0.992 (0.974–1.0) | 0.9375 | 0.889 |
+| Setting | Images | Image AUC (95 % bootstrap CI) | Sensitivity | Specificity | Image acc. | Gland AUC |
+|---|---|---|---|---|---|---|
+| CV on train (out-of-fold) | 85 | 0.962 (0.916–0.994) | 91.7 % (44/48) | 83.8 % (31/37) | 0.882 | 0.876 |
+| Test A+B · ground-truth glands | 80 | 0.999 (0.996–1.0) | 100 % (43/43) | 97.3 % (36/37) | 0.9875 | 0.968 |
+| Test A+B · model-found glands (790 vs 753 true) | 80 | 0.995 (0.983–1.0) | 97.7 % (42/43) | 94.6 % (35/37) | 0.9625 | 0.917 |
+
+Sweeps for other cut-offs: `results/threshold_sweep_oof.csv` (cross-validation) and `results/threshold_sweep_test_{gt,pred}.csv`.
 
 **Design notes**
 - *Glands are connected components.* The watershed step floods the whole mask, so it does not change which pixels are glands; counting, cropping and evaluating use connected components (`gland_instances`).
   Using the watershed ids as instances would cut large glands into many fragments (2,183 "glands" instead of 730). Making the watershed actually split touching glands is an open improvement.
 - *Tuning on test is a leak.* An early version swept thresholds on test A/B and reported the best; the package selects on validation only.
 - *A classifier needs real labels.* A first attempt used test-A = benign / test-B = malignant (wrong: both subsets contain both grades) and trained on test images; it was replaced by the `Grade.csv` version above.
-- The released U-Net checkpoint was trained with the original notebook recipe (`notebooks/exploratory/`); `glandnet-train` is a refactor of it and has not been re-run end to end. The predicted masks used to evaluate the classifier come from that notebook run, whose post-processing parameters were tuned on test.
+- The U-Net checkpoint was trained with the original notebook recipe (`notebooks/exploratory/`); `glandnet-train` is a refactor of it and has not been re-run end to end. The classifier is now evaluated through the package pipeline (validation-selected parameters), not on masks saved by the notebook; `--pred-dir` still accepts those legacy masks.
+- *Choosing the cut-off.* 0.4 favours sensitivity on purpose and was a judgement call; the cross-validated trade-off is in `docs/decision_threshold.md`.
 - Iteration path: U-Net 3 levels + Tversky → + edge-weighted BCE → 4 levels with a border channel (final).
 
 </details>

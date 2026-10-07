@@ -61,3 +61,13 @@ def test_summary_row_without_grade():
     from glandnet.visualize import summary_row
     s = summary_row([dict(G[0], id=1)], "x", None)
     assert s["true_grade"] is None and s["correct"] is None
+
+
+def test_threshold_tradeoff_plot_is_written(tmp_path):
+    from glandnet.classifier import threshold_sweep
+    from glandnet.report import plot_threshold_tradeoff
+    rng = np.random.default_rng(1)
+    sw = threshold_sweep(__import__("pandas").DataFrame({"label": rng.integers(0, 2, 100), "p": rng.random(100)}))
+    out = tmp_path / "t.png"
+    plot_threshold_tradeoff(sw, out, chosen=0.4)
+    assert out.exists() and out.stat().st_size > 1000

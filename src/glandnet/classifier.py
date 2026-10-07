@@ -23,6 +23,8 @@ glandnet-classify --data-root data --pred-dir predictions_unet4L --out results
 import argparse, json, random
 from pathlib import Path
 
+import cv2
+
 import numpy as np
 import pandas as pd
 import torch
@@ -35,7 +37,16 @@ from sklearn.model_selection import StratifiedGroupKFold
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms as T
 
+from .data import normalize, resize_image
+from .postprocess import gland_instances, predict_prob_map, segment
+
 MIN_AREA, PAD, SIZE = 80, 8, 224
+
+# A gland / image is called malignant when p(malignant) >= DECISION_THRESHOLD.
+# 0.4 (instead of the default 0.5) is a deliberate safety choice: in cancer screening a missed tumour (false negative)
+# is far worse than an unnecessary second look (false positive). See docs/decision_threshold.md.
+DECISION_THRESHOLD = 0.4
+REFERENCE_THRESHOLD = 0.5
 MEAN, STD = (0.485, 0.456, 0.406), (0.229, 0.224, 0.225)
 
 
@@ -66,7 +77,17 @@ def crops_from_labels(img, lab, name, label, patient, source):
     return out
 
 
-def build_samples(root, grades, split, pred_dir=None):
+def predict_instances(img, seg_model, device, params):
+    """Full-pipeline gland detection: U-Net -> threshold/clean -> connected components, at the image's original size.
+    `params` = {"thr", "min_size", "footprint"} selected on the validation split (results/segmentation_metrics.json)."""
+    H, W = img.shape[:2]
+    x = normalize(resize_image(img)).unsqueeze(0).to(device)
+    prob = predict_prob_map(seg_model, x)[0]
+    labels = gland_instances(segment(prob, params["thr"], params["min_size"], params["footprint"]))
+    return cv2.resize(labels.astype(np.int32), (W, H), interpolation=cv2.INTER_NEAREST)
+
+
+def build_samples(root, grades, split, pred_dir=None, pred_fn=None):
     root = Path(root)
     gt, pred = [], []
     for _, row in grades.iterrows():
@@ -81,7 +102,9 @@ def build_samples(root, grades, split, pred_dir=None):
         if m.ndim == 3:
             m = m[..., 0]
         gt += crops_from_labels(img, m, n, row["label"], row["patient"], "gt")
-        if pred_dir is not None and n.startswith("test"):
+        if pred_fn is not None and n.startswith("test"):
+            pred += crops_from_labels(img, pred_fn(img), n, row["label"], row["patient"], "pred")
+        elif pred_dir is not None and n.startswith("test"):
             sub = "testA" if n.startswith("testA") else "testB"
             f = Path(pred_dir) / sub / "masks_label" / f"{n}_labels_ws.npy"
             if f.exists():
@@ -134,26 +157,46 @@ def predict(model, samples, device):
     return np.concatenate(p) if p else np.array([])
 
 
-def metrics(samples, probs, boot=1000, seed=0):
+def operating_point(y_true, p, thr: float) -> dict:
+    """Confusion matrix and screening metrics for the rule 'malignant if p >= thr' (1 = malignant)."""
+    y, pred = np.asarray(y_true).astype(int), (np.asarray(p) >= thr).astype(int)
+    tp, fn = int(((y == 1) & (pred == 1)).sum()), int(((y == 1) & (pred == 0)).sum())
+    fp, tn = int(((y == 0) & (pred == 1)).sum()), int(((y == 0) & (pred == 0)).sum())
+    div = lambda a, b: float(a / b) if b else float("nan")
+    return {"threshold": thr, "sensitivity": div(tp, tp + fn), "specificity": div(tn, tn + fp),
+            "precision": div(tp, tp + fp), "accuracy": div(tp + tn, tp + tn + fp + fn),
+            "tp": tp, "fn": fn, "fp": fp, "tn": tn}
+
+
+def metrics(samples, probs, boot=1000, seed=0, thr: float = DECISION_THRESHOLD):
     df = pd.DataFrame(dict(name=[s["name"] for s in samples], label=[s["label"] for s in samples], p=probs))
     out = {}
     if df["label"].nunique() == 2:
         out["gland_auc"] = float(roc_auc_score(df["label"], df["p"]))
-    out["gland_acc"] = float(accuracy_score(df["label"], df["p"] >= .5))
+    out["gland_acc"] = float(accuracy_score(df["label"], df["p"] >= thr))
     out["n_glands"] = int(len(df))
     img = df.groupby("name").agg(label=("label", "first"), p=("p", "mean")).reset_index()
     out["n_images"] = int(len(img))
-    out["image_acc"] = float(accuracy_score(img["label"], img["p"] >= .5))
-    out["image_f1"] = float(f1_score(img["label"], img["p"] >= .5, zero_division=0))
+    out["image_threshold"] = thr
+    out["image_acc"] = float(accuracy_score(img["label"], img["p"] >= thr))
+    out["image_f1"] = float(f1_score(img["label"], img["p"] >= thr, zero_division=0))
+    out["image_at_threshold"] = operating_point(img["label"], img["p"], thr)
+    out["image_at_reference_0.5"] = operating_point(img["label"], img["p"], REFERENCE_THRESHOLD)
     if img["label"].nunique() == 2:
         out["image_auc"] = float(roc_auc_score(img["label"], img["p"]))
-        rng = np.random.default_rng(seed); aucs = []
-        for _ in range(boot):
-            b = img.iloc[rng.integers(0, len(img), len(img))]
-            if b["label"].nunique() == 2:
-                aucs.append(roc_auc_score(b["label"], b["p"]))
-        out["image_auc_ci95"] = [float(np.percentile(aucs, 2.5)), float(np.percentile(aucs, 97.5))]
+        if boot:
+            rng = np.random.default_rng(seed); aucs = []
+            for _ in range(boot):
+                b = img.iloc[rng.integers(0, len(img), len(img))]
+                if b["label"].nunique() == 2:
+                    aucs.append(roc_auc_score(b["label"], b["p"]))
+            out["image_auc_ci95"] = [float(np.percentile(aucs, 2.5)), float(np.percentile(aucs, 97.5))]
     return out, img
+
+
+def threshold_sweep(img: pd.DataFrame, thresholds=(0.2, 0.3, 0.4, 0.5, 0.6, 0.7)) -> pd.DataFrame:
+    """Sensitivity / specificity trade-off for different cut-offs (img has columns label and p)."""
+    return pd.DataFrame([operating_point(img["label"], img["p"], t) for t in thresholds])
 
 
 def load_classifier(ckpt, device):
@@ -165,18 +208,28 @@ def load_classifier(ckpt, device):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--data-root", required=True)
-    ap.add_argument("--pred-dir", default=None)
+    ap.add_argument("--pred-dir", default=None, help="legacy: <name>_labels_ws.npy masks saved by the original notebook")
+    ap.add_argument("--seg-checkpoint", default=None, help="U-Net checkpoint: detect glands with the full package pipeline (preferred)")
+    ap.add_argument("--seg-metrics", default="results/segmentation_metrics.json", help="json with the validation-selected post-processing params")
     ap.add_argument("--out", default="results")
     ap.add_argument("--epochs", type=int, default=12)
     ap.add_argument("--folds", type=int, default=5)
     ap.add_argument("--ckpt", default=None, help="where to save the final model (.pth)")
+    ap.add_argument("--oof-only", action="store_true", help="only run the patient-grouped CV and save out-of-fold predictions (no final model)")
     ap.add_argument("--eval-only", default=None, metavar="CKPT", help="skip training/CV: evaluate this classifier checkpoint on test")
     a = ap.parse_args()
     device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
     out = Path(a.out); out.mkdir(parents=True, exist_ok=True)
     grades = read_grades(a.data_root)
     train, _ = build_samples(a.data_root, grades, "train")
-    test_gt, test_pred = build_samples(a.data_root, grades, "test", a.pred_dir)
+    pred_fn = None
+    if a.seg_checkpoint:
+        from .model import UNet4L
+        seg = UNet4L().to(device); seg.load_state_dict(torch.load(a.seg_checkpoint, map_location=device)); seg.eval()
+        params = json.load(open(a.seg_metrics))["selected_on_validation"]
+        pred_fn = lambda im: predict_instances(im, seg, device, params)
+        print("detecting test glands with the full pipeline, params:", params)
+    test_gt, test_pred = build_samples(a.data_root, grades, "test", a.pred_dir, pred_fn)
     print(f"device={device} train glands={len(train)} test(gt)={len(test_gt)} test(pred)={len(test_pred)}")
     tr_patients = set(s["patient"] for s in train); te_patients = set(g["patient"] for g in grades.to_dict("records") if g["name"].startswith("test"))
     print("patients shared between train and test:", sorted(tr_patients & te_patients))
@@ -185,6 +238,14 @@ def main():
     if a.eval_only:
         model = load_classifier(a.eval_only, device)
         cv_pooled = json.load(open(prev))["cv_pooled_out_of_fold"] if prev.exists() else None
+        oof = out / "oof_image_predictions.csv"
+        if oof.exists():  # recompute the operating point of the CV predictions at the current threshold
+            o = pd.read_csv(oof)
+            cv_pooled = dict(cv_pooled or {})
+            cv_pooled["image_threshold"] = DECISION_THRESHOLD
+            cv_pooled["image_at_threshold"] = operating_point(o["label"], o["p"], DECISION_THRESHOLD)
+            cv_pooled["image_at_reference_0.5"] = operating_point(o["label"], o["p"], REFERENCE_THRESHOLD)
+            cv_pooled["image_acc"] = cv_pooled["image_at_threshold"]["accuracy"]
         print("eval-only: using", a.eval_only)
     else:
         # ---- patient-grouped CV on train
@@ -199,9 +260,16 @@ def main():
             oof_s += vs; oof_p.append(predict(m, vs, device))
             cv.append(dict(fold=k + 1, n_val_images=len(va_names)))
         # patient sizes are very uneven, so per-fold AUC is unreliable: pool out-of-fold predictions
-        cv_pooled, _ = metrics(oof_s, np.concatenate(oof_p), boot=1000)
+        cv_pooled, oof_img = metrics(oof_s, np.concatenate(oof_p), boot=1000)
         print("CV (pooled out-of-fold):", cv_pooled, flush=True)
         pd.DataFrame(cv).to_csv(out / "cv_folds.csv", index=False)
+        oof_img.to_csv(out / "oof_image_predictions.csv", index=False)
+        threshold_sweep(oof_img).to_csv(out / "threshold_sweep_oof.csv", index=False)
+        if a.oof_only:
+            res = json.load(open(prev)) if prev.exists() else {"test": {}}
+            res["cv_pooled_out_of_fold"] = cv_pooled
+            json.dump(res, open(prev, "w"), indent=2)
+            return
 
         # ---- final model on the full train split, single evaluation on test
         print("final fit")
@@ -221,6 +289,7 @@ def main():
             res["test"][f"{tag}_{sub}"] = r
             if sub == "A+B":
                 img.to_csv(out / f"image_predictions_{tag}.csv", index=False)
+                threshold_sweep(img).to_csv(out / f"threshold_sweep_test_{tag}.csv", index=False)
             print(tag, sub, r)
     json.dump(res, open(out / "metrics.json", "w"), indent=2)
 
