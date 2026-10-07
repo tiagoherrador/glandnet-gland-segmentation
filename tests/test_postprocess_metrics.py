@@ -47,3 +47,19 @@ def test_object_metrics_perfect_and_empty():
 def test_object_metrics_counts_a_missed_gland():
     a = two_blobs(); pred = a.copy(); pred[40:60, 40:60] = 0
     assert 0.6 < object_metrics(pred, a)["F1"] < 0.7  # TP=1, FN=1, FP=0 -> 2/3
+
+
+def test_gland_instances_are_connected_components_not_watershed_pieces():
+    # two touching discs: watershed puts 2 ids inside ONE connected blob; the pipeline counts 1 gland
+    from glandnet.postprocess import gland_instances
+    yy, xx = np.mgrid[:80, :120]
+    m = (((yy - 40) ** 2 + (xx - 35) ** 2) < 28 ** 2) | (((yy - 40) ** 2 + (xx - 85) ** 2) < 28 ** 2)
+    ws = split_glands_watershed(m.astype(np.uint8), footprint_size=15)
+    assert len(np.unique(ws)) - 1 == 2
+    assert len(np.unique(gland_instances(ws))) - 1 == 1
+
+
+def test_watershed_does_not_change_the_binary_mask():
+    prob = np.zeros((64, 64)); prob[10:30, 10:30] = 0.9; prob[40:60, 40:60] = 0.9
+    raw = clean_mask((prob > 0.5).astype(np.uint8), min_size=5)
+    assert ((segment(prob, 0.5, 5, 9) > 0) == (raw > 0)).all()

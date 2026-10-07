@@ -20,7 +20,7 @@ from matplotlib.patches import Rectangle
 from .classifier import crops_from_labels, load_classifier, predict, read_grades
 from .data import IMG_SIZE, load_image, load_mask, normalize, resize_image
 from .model import UNet4L, pick_device
-from .postprocess import predict_prob_map, segment
+from .postprocess import gland_instances, predict_prob_map, segment
 
 BENIGN_COLOR, MALIGNANT_COLOR = "#00b050", "#e00000"
 GRADE_NAMES = {0: "benign", 1: "malignant"}
@@ -30,7 +30,7 @@ def run_pipeline(img, seg_model, cls_model, device, params):
     """RGB image -> (instance labels at original size, list of per-gland dicts with bbox and prob_malignant)."""
     H, W = img.shape[:2]
     x = normalize(resize_image(img)).unsqueeze(0).to(device)
-    labels512 = segment(predict_prob_map(seg_model, x)[0], params["thr"], params["min_size"], params["footprint"])
+    labels512 = gland_instances(segment(predict_prob_map(seg_model, x)[0], params["thr"], params["min_size"], params["footprint"]))
     labels = cv2.resize(labels512.astype(np.int32), (W, H), interpolation=cv2.INTER_NEAREST)
     glands = crops_from_labels(img, labels, "", 0, 0, "pred")
     if glands:

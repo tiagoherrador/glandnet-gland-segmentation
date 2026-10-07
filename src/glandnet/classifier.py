@@ -29,7 +29,7 @@ import torch
 import torch.nn as nn
 import timm
 from PIL import Image
-from skimage.measure import regionprops
+from skimage.measure import label as cc_label, regionprops
 from sklearn.metrics import roc_auc_score, accuracy_score, f1_score
 from sklearn.model_selection import StratifiedGroupKFold
 from torch.utils.data import DataLoader, Dataset
@@ -85,7 +85,7 @@ def build_samples(root, grades, split, pred_dir=None):
             sub = "testA" if n.startswith("testA") else "testB"
             f = Path(pred_dir) / sub / "masks_label" / f"{n}_labels_ws.npy"
             if f.exists():
-                pred += crops_from_labels(img, np.load(f), n, row["label"], row["patient"], "pred")
+                pred += crops_from_labels(img, cc_label(np.load(f) > 0), n, row["label"], row["patient"], "pred")  # connected components, not watershed ids
     return gt, pred
 
 
@@ -170,6 +170,7 @@ def main():
     ap.add_argument("--epochs", type=int, default=12)
     ap.add_argument("--folds", type=int, default=5)
     ap.add_argument("--ckpt", default=None, help="where to save the final model (.pth)")
+    ap.add_argument("--eval-only", default=None, metavar="CKPT", help="skip training/CV: evaluate this classifier checkpoint on test")
     a = ap.parse_args()
     device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
     out = Path(a.out); out.mkdir(parents=True, exist_ok=True)
@@ -180,27 +181,33 @@ def main():
     tr_patients = set(s["patient"] for s in train); te_patients = set(g["patient"] for g in grades.to_dict("records") if g["name"].startswith("test"))
     print("patients shared between train and test:", sorted(tr_patients & te_patients))
 
-    # ---- patient-grouped CV on train
-    imgs = pd.DataFrame([{k: s[k] for k in ("name", "patient", "label")} for s in train]).drop_duplicates("name").reset_index(drop=True)
-    oof_s, oof_p, cv = [], [], []
-    skf = StratifiedGroupKFold(n_splits=a.folds, shuffle=True, random_state=42)
-    for k, (tr, va) in enumerate(skf.split(imgs, imgs["label"], imgs["patient"])):
-        tr_names, va_names = set(imgs.loc[tr, "name"]), set(imgs.loc[va, "name"])
-        print(f"fold {k+1}/{a.folds}: train imgs={len(tr_names)} val imgs={len(va_names)}", flush=True)
-        m = fit([s for s in train if s["name"] in tr_names], device, a.epochs)
-        vs = [s for s in train if s["name"] in va_names]
-        oof_s += vs; oof_p.append(predict(m, vs, device))
-        cv.append(dict(fold=k + 1, n_val_images=len(va_names)))
-    # patient sizes are very uneven, so per-fold AUC is unreliable: pool out-of-fold predictions
-    cv_pooled, _ = metrics(oof_s, np.concatenate(oof_p), boot=1000)
-    print("CV (pooled out-of-fold):", cv_pooled, flush=True)
-    pd.DataFrame(cv).to_csv(out / "cv_folds.csv", index=False)
+    prev = out / "metrics.json"
+    if a.eval_only:
+        model = load_classifier(a.eval_only, device)
+        cv_pooled = json.load(open(prev))["cv_pooled_out_of_fold"] if prev.exists() else None
+        print("eval-only: using", a.eval_only)
+    else:
+        # ---- patient-grouped CV on train
+        imgs = pd.DataFrame([{k: s[k] for k in ("name", "patient", "label")} for s in train]).drop_duplicates("name").reset_index(drop=True)
+        oof_s, oof_p, cv = [], [], []
+        skf = StratifiedGroupKFold(n_splits=a.folds, shuffle=True, random_state=42)
+        for k, (tr, va) in enumerate(skf.split(imgs, imgs["label"], imgs["patient"])):
+            tr_names, va_names = set(imgs.loc[tr, "name"]), set(imgs.loc[va, "name"])
+            print(f"fold {k+1}/{a.folds}: train imgs={len(tr_names)} val imgs={len(va_names)}", flush=True)
+            m = fit([s for s in train if s["name"] in tr_names], device, a.epochs)
+            vs = [s for s in train if s["name"] in va_names]
+            oof_s += vs; oof_p.append(predict(m, vs, device))
+            cv.append(dict(fold=k + 1, n_val_images=len(va_names)))
+        # patient sizes are very uneven, so per-fold AUC is unreliable: pool out-of-fold predictions
+        cv_pooled, _ = metrics(oof_s, np.concatenate(oof_p), boot=1000)
+        print("CV (pooled out-of-fold):", cv_pooled, flush=True)
+        pd.DataFrame(cv).to_csv(out / "cv_folds.csv", index=False)
 
-    # ---- final model on the full train split, single evaluation on test
-    print("final fit")
-    model = fit(train, device, a.epochs)
-    if a.ckpt:
-        torch.save(model.state_dict(), a.ckpt)
+        # ---- final model on the full train split, single evaluation on test
+        print("final fit")
+        model = fit(train, device, a.epochs)
+        if a.ckpt:
+            torch.save(model.state_dict(), a.ckpt)
     res = {"cv_pooled_out_of_fold": cv_pooled, "test": {}}
     for tag, S in (("gt", test_gt), ("pred", test_pred)):
         if not S:

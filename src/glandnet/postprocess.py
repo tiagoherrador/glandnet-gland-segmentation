@@ -1,6 +1,7 @@
 """From a probability map to labelled gland instances (threshold -> clean -> watershed)."""
 import numpy as np
 import torch
+from skimage.measure import label
 from scipy import ndimage as ndi
 from skimage.feature import peak_local_max
 from skimage.morphology import binary_opening, disk, remove_small_objects
@@ -23,6 +24,17 @@ def split_glands_watershed(pred_bin, footprint_size: int = 20):
         markers_mask[tuple(coords.T)] = True
     markers, _ = ndi.label(markers_mask)
     return watershed(-distance, markers, mask=pred_bin)
+
+
+def gland_instances(mask_or_labels):
+    """Gland instances = connected components of the binary mask.
+
+    This is how the original notebook counted/cropped glands and how `object_metrics` labels them.
+    NOTE: `split_glands_watershed` floods the whole mask, so `labels > 0` equals the cleaned binary mask:
+    the watershed does not change the detected glands, and its internal ids must NOT be used as instances
+    (they cut large glands into many pieces).
+    """
+    return label(np.asarray(mask_or_labels) > 0)
 
 
 def segment(prob_map, thr: float = 0.5, min_size: int = 20, footprint_size: int = 20):
