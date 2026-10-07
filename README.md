@@ -1,81 +1,146 @@
-# GlandNet – gland segmentation and grading in colon histology (GlaS)
+# GlandNet – teaching a computer to spot glands in colon tissue, and to flag the suspicious ones
 
 [![tests](https://github.com/tiagoherrador/glandnet-gland-segmentation/actions/workflows/ci.yml/badge.svg)](https://github.com/tiagoherrador/glandnet-gland-segmentation/actions)
 
-PyTorch package + CLIs for **gland segmentation** (4-level U-Net with an interior + border output; each gland = one connected component of the predicted mask)
-and **benign/malignant classification of every detected gland** on the GlaS (Warwick-QU) colon-histology challenge dataset (85 train / 60 test-A / 20 test-B images).
+> **Research and portfolio project — not a medical device.** It has never been tested on real patients and must not be used to diagnose anything.
 
-![Pipeline example – malignant test image](assets/pipeline_testA_59.png)
-*Test image `testA_59` (malignant): U-Net glands, then each gland classified — **green = predicted benign, red = predicted malignant** (number = p(malignant)). 10/10 glands called malignant → image called malignant. Glands < 400 px² are hidden in the figure only.*
+## The idea in plain words
 
-## Pipeline examples (held-out test images)
+When a doctor suspects colon cancer, a pathologist looks at a thin slice of tissue under the microscope. The first thing they check is the **glands**:
+small tube-shaped structures that line the colon. In healthy tissue they look orderly; in cancer they become crowded, irregular and distorted.
 
-| Benign image, correctly called benign | Malignant image (test B), correctly called malignant |
+This project automates that first look in two steps:
+
+1. **Find the glands.** A neural network (a *U-Net*) outlines every gland in the picture.
+2. **Judge each gland.** A second network looks at each gland on its own and estimates how likely it is to be malignant.
+
+The result is an annotated picture, a results table, and a verdict for the whole image — all in one go.
+
+## What the model gives you
+
+For every tissue image you get **a figure** and **a table**.
+
+![Example result: malignant tissue](assets/pipeline_testA_59.png)
+
+*How to read the figure.* Top row: the original image and the outline drawn by human experts (the "answer key"). Middle row, left: the glands the model found.
+Middle row, right: each gland in a box — **green means the model thinks it is benign, red means it thinks it is malignant** — with the gland's number and its probability of malignancy.
+The image gets one overall verdict: the average of all its glands. Bottom: a table with the numbers behind every box.
+
+The same table is saved as a spreadsheet (`results/examples/<image>_glands.csv`), so you can use it without opening the picture:
+
+| gland | size (px²) | bounding box (row_min, col_min, row_max, col_max) | probability malignant | prediction |
+|---|---|---|---|---|
+| 2 | 26,034 | (0, 126, 155, 368) | 1.00 | malignant |
+| 3 | 45,856 | (0, 386, 282, 673) | 1.00 | malignant |
+| … | … | … | … | … |
+
+And `results/examples/summary.csv` has one line per image — how many glands were found, how many were called malignant, the image verdict, the pathologist's grade, and whether the model got it right:
+
+| image | glands found | called malignant | verdict | pathologist's grade | correct? |
+|---|---|---|---|---|---|
+| testA_33 | 11 | 0 | benign | benign | yes |
+| testA_59 | 10 | 10 | malignant | malignant | yes |
+| testB_11 | 6 | 5 | malignant | malignant | yes |
+| testA_44 | 9 | 5 | malignant | benign | **no** |
+
+More examples — a healthy image and a malignant one from the second test set:
+
+| Healthy tissue, correctly called benign | Malignant tissue, correctly called malignant |
 |---|---|
 | ![benign](assets/pipeline_testA_33.png) | ![malignant](assets/pipeline_testB_11.png) |
 
-**A failure case** — `testA_44` is benign but is called malignant (mean p = 0.53). The segmentation is good (9 glands that match the image); the error is in the classifier, which marks two large elongated glands as malignant.
-Overall, 5 of 80 test images are misclassified at the fixed 0.5 threshold: 4 malignant called benign (mean p 0.42–0.48) and 1 benign called malignant (p = 0.63).
+### When it gets it wrong
+`testA_44` is benign, but the model calls it malignant. Looking at the picture, the glands were found correctly — the mistake is in judging them: the model marks two large, elongated glands as malignant.
 
-![failure](assets/pipeline_testA_44.png)
+![A mistake](assets/pipeline_testA_44.png)
 
-Generate these figures with `glandnet-visualize` (see Quick start).
+Out of 80 test images, 5 were wrong: 4 malignant images called benign (their probability was just under the 50 % cut-off, between 0.42 and 0.48) and 1 benign image called malignant.
 
-## Segmentation results (leakage-free protocol)
+## How well does it work?
 
-Post-processing parameters (probability threshold, min object size, watershed footprint) are chosen by grid search **on the 20 % validation split only** and then
-applied unchanged to test A and B (`glandnet-eval`; selected: threshold 0.65, min size 25, footprint 22).
+All numbers below are on images the model **never saw during training** (the 80 test images of the public GlaS challenge dataset).
+
+### Finding the glands
+| Test set | How well the outlines match the experts' (Dice) | How many individual glands were correctly found (F1) |
+|---|---|---|
+| Set A (60 images: 33 benign, 27 malignant) | **0.89** | **0.78** |
+| Set B (20 images: 16 malignant, 4 benign — harder) | 0.81 | 0.69 |
+
+### Judging the glands
+| | Can it tell malignant from benign images? (AUC) | Images called correctly |
+|---|---|---|
+| During development (cross-validation on training images) | 0.96 | 92 % |
+| Test images, glands found by the model | **0.99** | **94 %** (75 of 80) |
+
+**What the metrics mean**
+- **Dice (0 to 1)** — how much the model's outline overlaps the experts' outline. 1 is a perfect copy; 0.9 is very close.
+- **F1 (0 to 1)** — counts glands one by one: did the model find this gland, and did it avoid inventing ones that aren't there? It is stricter than Dice because a missed or merged gland hurts.
+- **AUC (0.5 to 1)** — if you pick one malignant and one benign image at random, how often does the model give the malignant one the higher score? 0.5 is a coin flip, 1.0 is always right.
+
+## Things to keep in mind (honest limits)
+
+- **The score looks better than it should.** In this public dataset, 11 patients contribute images to both the training and the test sets. The model may partly be recognising *that patient's tissue* rather than learning what malignancy looks like. Treat the AUC near 1.0 with caution.
+- **Small test sets.** 60 and 20 images are few; a couple of mistakes move the numbers noticeably.
+- **The "malignant / benign" label is for the whole image, not each gland.** The dataset only says whether an image is benign or malignant, so every gland in a malignant image is trained as "malignant", even if some of them look normal. That is why individual glands are judged less accurately (AUC 0.89) than whole images (0.99).
+- **Neighbouring glands that touch can merge** into one big blob, which lowers the gland-by-gland score (F1).
+- **The 50 % cut-off was not tuned on the test set** (that would be cheating). It happens to be slightly cautious: all but one of the mistakes are malignant images called benign.
+
+## How it works (the short version)
+
+1. **Outline.** The U-Net predicts, for every pixel, "is this gland?" and "is this a gland border?"; the two are combined into one gland map. Pixels above a probability threshold form the gland mask, and each separate connected region is counted as one gland. The threshold and the cleaning settings were chosen on a validation set, never on the test set.
+2. **Crop.** Each gland is cut out with a small margin.
+3. **Judge.** An EfficientNet-B0 network (pre-trained on everyday photos, then trained on gland crops) gives each crop a probability of being malignant. The image verdict is the average over its glands.
+
+## Try it yourself
+
+```bash
+pip install -e ".[train,dev]"
+# download the GlaS dataset (link below) into data/{train,test}/{images,masks} and data/metadata/Grade.csv
+
+glandnet-train     --data-root data --out-dir models        # 1. train the gland finder
+glandnet-eval      --data-root data --checkpoint models/unet4l.pth   # 2. measure it
+glandnet-classify  --data-root data --pred-dir predictions --out results   # 3. train/test the benign-vs-malignant judge
+glandnet-visualize --data-root data --seg-checkpoint models/unet4l.pth \
+                   --cls-checkpoint models/gland_classifier_effb0.pth \
+                   --names testA_59 testB_11 --out assets --tables results/examples   # 4. figures + tables
+pytest -q                                                    # 24 automated tests
+```
+
+**Data:** the *GlaS* challenge dataset (Warwick-QU, 165 colon-tissue images with expert outlines). It is not included here; download it from the challenge page.
+Model weights (`*.pth`) are also not included.
+
+<details>
+<summary><b>For developers</b></summary>
+
+**Code layout** (`src/glandnet/`): `model.py` (4-level U-Net, 2 output channels) · `losses.py` (border-weighted BCE + Dice + Tversky) · `postprocess.py` (threshold → remove small objects → connected-component glands) ·
+`metrics.py` (pixel and object-level metrics) · `data.py` (GlaS loading, reproducible 80/20 split) · `train.py` · `evaluate.py` · `classifier.py` (EfficientNet-B0 on gland crops, patient-grouped CV) · `visualize.py` (figures and tables).
+
+**Segmentation protocol.** Post-processing parameters (threshold, minimum object size, watershed footprint) are chosen by grid search on the 17-image validation split (selected: 0.65 / 25 / 22) and applied unchanged to test.
 
 | Split | Images | Object Dice | Object F1 | Pixel Dice | Hausdorff |
 |---|---|---|---|---|---|
-| Validation (selection) | 17 | 0.887 | 0.827 | 0.926 | 33.5 |
-| **Test A** | 60 | 0.886 | 0.775 | 0.913 | 35.9 |
-| **Test B** | 20 | 0.805 | 0.693 | 0.891 | 40.8 |
+| Validation | 17 | 0.887 | 0.827 | 0.926 | 33.5 |
+| Test A | 60 | 0.886 | 0.775 | 0.913 | 35.9 |
+| Test B | 20 | 0.805 | 0.693 | 0.891 | 40.8 |
 | Test A+B | 80 | 0.866 | 0.755 | 0.908 | 37.1 |
 
-*Object F1*: a ground-truth gland is a hit if its best-matching predicted gland has Dice > 0.5; F1 = TP / (TP + (FP + FN)/2).
-Test B (poorly differentiated, irregular glands) is clearly harder, and object-level F1 is well below pixel Dice: adjacent glands that touch merge into a single predicted blob (the border channel is included in the gland probability), which costs matches at the object level.
-The checkpoint was trained with the original notebook recipe (`notebooks/exploratory/`); `glandnet-train` is a refactor of that recipe and has **not been re-run end to end**.
-
-## Benign / malignant classifier
-EfficientNet-B0 on gland crops, **labels from `Grade.csv`** (image-level grade applied to each gland → weak labels), trained on the train split only,
-5-fold patient-grouped CV, fixed 12 epochs and 0.5 threshold, test evaluated once (`glandnet-classify`).
+**Classifier protocol.** Labels from `Grade.csv` (image grade applied to each gland), trained on the train split only (765 gland crops), 5-fold `StratifiedGroupKFold` by patient with out-of-fold predictions pooled, 12 epochs, threshold 0.5, test evaluated once.
 
 | Setting | Images | Image AUC (95 % bootstrap CI) | Image acc. | Gland AUC |
 |---|---|---|---|---|
-| Cross-validation, train (out-of-fold) | 85 | 0.962 (0.916–0.994) | 0.92 | 0.876 |
-| Test A+B · GT masks | 80 | 0.999 (0.996–1.0) | 0.975 | 0.968 |
-| Test A+B · U-Net predicted glands (full pipeline, 730 glands) | 80 | 0.992 (0.974–1.0) | 0.9375 | 0.889 |
+| CV on train (out-of-fold) | 85 | 0.962 (0.916–0.994) | 0.92 | 0.876 |
+| Test A+B · ground-truth glands | 80 | 0.999 (0.996–1.0) | 0.975 | 0.968 |
+| Test A+B · model-found glands (730 vs 753 true) | 80 | 0.992 (0.974–1.0) | 0.9375 | 0.889 |
 
-**Read with care:** 11 patients appear in both train and test (how GlaS is split), so the model may partly recognise patient-specific tissue; test sets are tiny; gland-level labels are weak.
-With predicted glands the pipeline detects 730 glands vs 753 in the ground truth. The predicted masks used here come from the original notebook run, whose post-processing parameters were tuned on test. Per-image/per-gland predictions are in `results/`.
+**Design notes**
+- *Glands are connected components.* The watershed step floods the whole mask, so it does not change which pixels are glands; counting, cropping and evaluating use connected components (`gland_instances`).
+  Using the watershed ids as instances would cut large glands into many fragments (2,183 "glands" instead of 730). Making the watershed actually split touching glands is an open improvement.
+- *Tuning on test is a leak.* An early version swept thresholds on test A/B and reported the best; the package selects on validation only.
+- *A classifier needs real labels.* A first attempt used test-A = benign / test-B = malignant (wrong: both subsets contain both grades) and trained on test images; it was replaced by the `Grade.csv` version above.
+- The released U-Net checkpoint was trained with the original notebook recipe (`notebooks/exploratory/`); `glandnet-train` is a refactor of it and has not been re-run end to end. The predicted masks used to evaluate the classifier come from that notebook run, whose post-processing parameters were tuned on test.
+- Iteration path: U-Net 3 levels + Tversky → + edge-weighted BCE → 4 levels with a border channel (final).
 
-## Quick start
-```bash
-pip install -e ".[train,dev]"
-# put GlaS under data/{train,test}/{images,masks} and data/metadata/Grade.csv
-glandnet-train    --data-root data --out-dir models          # U-Net, 80/20 split, seed 42
-glandnet-eval     --data-root data --checkpoint models/unet4l.pth
-glandnet-classify --data-root data --pred-dir predictions --out results
-glandnet-visualize --data-root data --seg-checkpoint models/unet4l.pth \
-    --cls-checkpoint models/gland_classifier_effb0.pth --names testA_59 testB_11 --out assets
-pytest -q                                                    # 23 tests
-```
-
-## Code layout
-`src/glandnet/` — `model.py` (U-Net), `losses.py` (BCE with border weight + Dice + Tversky), `postprocess.py` (threshold → remove small objects → connected-component glands),
-`metrics.py` (pixel / object metrics), `visualize.py` (green/red gland-box figures), `data.py` (GlaS I/O, reproducible split), `train.py`, `evaluate.py`, `classifier.py`.
-`tests/` covers the model shape, loss behaviour, watershed splitting of touching glands, metric edge cases, the data split and `Grade.csv` parsing.
-
-## Decisions and lessons
-- **Iteration path:** U-Net 3 levels + Tversky → + edge-weighted BCE → 4 levels with a border channel (the final model).
-- **Glands are connected components.** The watershed step floods the entire mask, so it does not change which pixels are glands; counting/cropping/evaluating uses connected components (`gland_instances`). Using the watershed ids as instances would cut large glands into many fragments (2,183 "glands" instead of 730). Making the watershed actually split touching glands is an open improvement.
-- **Tuning on test is a leak.** The first version swept thresholds on test A/B and reported the best. The package selects on validation instead; the numbers above are the honest ones.
-- **A benign/malignant classifier needs real labels.** The first attempt used test-A = benign / test-B = malignant (wrong — both subsets contain both grades) and trained on test images. It was removed and replaced by the `Grade.csv`-based version above.
-- **Patient-level structure matters:** splits are grouped by patient for CV, and the train/test patient overlap is reported rather than hidden.
-
-## Data
-Download GlaS from the Warwick-QU challenge page; it is not redistributed here. Model weights (`*.pth`) are not versioned.
+</details>
 
 ## Author
 Tiago Alejo Herrador — MIT licensed.

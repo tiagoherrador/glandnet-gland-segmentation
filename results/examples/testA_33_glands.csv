@@ -1,0 +1,12 @@
+image,gland,size_px2,row_min,col_min,row_max,col_max,p_malignant,prediction
+testA_33,1,11056,0,0,107,220,0.0,benign
+testA_33,2,7879,0,185,74,350,0.0,benign
+testA_33,3,3073,0,379,41,492,0.0508,benign
+testA_33,4,14245,0,506,112,700,0.0,benign
+testA_33,5,5941,0,679,110,775,0.0,benign
+testA_33,6,58074,40,0,381,450,0.0,benign
+testA_33,7,29601,102,296,289,592,0.0,benign
+testA_33,8,32019,108,471,301,775,0.0,benign
+testA_33,9,46604,208,0,462,324,0.0,benign
+testA_33,10,18208,303,468,432,648,0.0,benign
+testA_33,11,2661,498,138,522,268,0.045,benign

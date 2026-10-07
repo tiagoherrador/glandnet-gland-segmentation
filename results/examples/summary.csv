@@ -1,0 +1,5 @@
+image,n_glands,n_glands_malignant,mean_p_malignant,image_prediction,true_grade,correct
+testA_33,11,0,0.0087,benign,benign,True
+testA_59,10,10,0.952,malignant,malignant,True
+testB_11,6,5,0.8384,malignant,malignant,True
+testA_44,9,5,0.5318,malignant,benign,False
