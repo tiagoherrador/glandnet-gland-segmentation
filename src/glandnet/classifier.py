@@ -62,7 +62,7 @@ def crops_from_labels(img, lab, name, label, patient, source):
         a, b, c, d = max(a - PAD, 0), max(b - PAD, 0), min(c + PAD, H), min(d + PAD, W)
         crop = Image.fromarray(img[a:c, b:d]).resize((SIZE, SIZE), Image.BILINEAR)
         out.append(dict(name=name, gland=r.label, patient=patient, label=label,
-                        source=source, crop=np.asarray(crop)))
+                        source=source, crop=np.asarray(crop), bbox=r.bbox, area=int(r.area)))
     return out
 
 
@@ -154,6 +154,12 @@ def metrics(samples, probs, boot=1000, seed=0):
                 aucs.append(roc_auc_score(b["label"], b["p"]))
         out["image_auc_ci95"] = [float(np.percentile(aucs, 2.5)), float(np.percentile(aucs, 97.5))]
     return out, img
+
+
+def load_classifier(ckpt, device):
+    model = timm.create_model("efficientnet_b0", pretrained=False, num_classes=2).to(device)
+    model.load_state_dict(torch.load(ckpt, map_location=device))
+    return model.eval()
 
 
 def main():

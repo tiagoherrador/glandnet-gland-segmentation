@@ -5,7 +5,21 @@
 PyTorch package + CLIs for **gland instance segmentation** (4-level U-Net with an interior + border output, watershed to split touching glands)
 and **benign/malignant classification** on the GlaS (Warwick-QU) colon-histology challenge dataset (85 train / 60 test-A / 20 test-B images).
 
-![Example](assets/example_testB_segmentation.png)
+![Pipeline example – malignant test image](assets/pipeline_testA_59.png)
+*Test image `testA_59` (malignant): U-Net instances, then each gland classified — **green = predicted benign, red = predicted malignant** (number = p(malignant)). 37/42 glands called malignant → image called malignant. Fragments < 400 px² are hidden in the figure only.*
+
+## Pipeline examples (held-out test images)
+
+| Benign image, correctly called benign | Malignant image (test B), correctly called malignant |
+|---|---|
+| ![benign](assets/pipeline_testA_33.png) | ![malignant](assets/pipeline_testB_11.png) |
+
+**A failure case** — `testA_24` is malignant but is called benign (mean p = 0.38): the segmentation fragments a long lumen into stripes and the classifier splits its vote between green and red boxes.
+All 11 misclassified test images are malignant called benign, with mean p between 0.37 and 0.49 — i.e. the fixed 0.5 threshold is slightly too conservative for this model.
+
+![failure](assets/pipeline_testA_24.png)
+
+Generate these figures with `glandnet-visualize` (see Quick start).
 
 ## Segmentation results (leakage-free protocol)
 
@@ -44,12 +58,14 @@ pip install -e ".[train,dev]"
 glandnet-train    --data-root data --out-dir models          # U-Net, 80/20 split, seed 42
 glandnet-eval     --data-root data --checkpoint models/unet4l.pth
 glandnet-classify --data-root data --pred-dir predictions --out results
-pytest -q                                                    # 17 tests
+glandnet-visualize --data-root data --seg-checkpoint models/unet4l.pth \
+    --cls-checkpoint models/gland_classifier_effb0.pth --names testA_59 testB_11 --out assets
+pytest -q                                                    # 21 tests
 ```
 
 ## Code layout
 `src/glandnet/` — `model.py` (U-Net), `losses.py` (BCE with border weight + Dice + Tversky), `postprocess.py` (threshold → clean → watershed),
-`metrics.py` (pixel / object metrics), `data.py` (GlaS I/O, reproducible split), `train.py`, `evaluate.py`, `classifier.py`.
+`metrics.py` (pixel / object metrics), `visualize.py` (green/red gland-box figures), `data.py` (GlaS I/O, reproducible split), `train.py`, `evaluate.py`, `classifier.py`.
 `tests/` covers the model shape, loss behaviour, watershed splitting of touching glands, metric edge cases, the data split and `Grade.csv` parsing.
 
 ## Decisions and lessons
