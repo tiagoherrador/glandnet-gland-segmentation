@@ -120,30 +120,35 @@ Full numbers, the honest caveats and how to change the cut-off are in **[docs/de
 2. **Crop.** Each gland is cut out with a small margin.
 3. **Judge.** An EfficientNet-B0 network (pre-trained on everyday photos, then trained on gland crops) gives each crop a probability of being malignant. The image verdict is the average over its glands.
 
-## Try it yourself
+## Get the trained models and try them
 
+### 1. Ask for the models
+The trained models are shared **on request**. Send an email to **tiago.alejo.h@hotmail.com** with the subject *"GlandNet models"* and a line about how you plan to use them.
+You will receive a package (about 140 MB) with the two model files, checksums to verify them, and short instructions. They are shared for research and evaluation purposes.
+
+### 2. Run them on your own images
 ```bash
-pip install -e ".[train,dev]"
-# download the GlaS dataset (link below) into data/{train,test}/{images,masks} and data/metadata/Grade.csv
+pip install -e .
+# copy the two model files into models/   (names: unet4l.pth and gland_classifier_effb0.pth)
 
-glandnet-train     --data-root data --out-dir models        # 1. train the gland finder
-glandnet-eval      --data-root data --checkpoint models/unet4l.pth   # 2. measure it
-glandnet-classify  --data-root data --out results --seg-checkpoint models/unet4l.pth   # 3. train + test the benign-vs-malignant judge
-glandnet-visualize --data-root data --seg-checkpoint models/unet4l.pth \
-                   --cls-checkpoint models/gland_classifier_effb0.pth \
-                   --names testA_59 testB_11 --out assets --tables results/examples   # 4. figures + tables
-glandnet-visualize ... --images my_slide.png ...             # also works on any new image, no annotation needed
-pytest -q                                                    # 30 automated tests
+glandnet-predict --images my_slide.png            # one image
+glandnet-predict --images folder_with_slides/     # or a whole folder
 ```
+For every image you get the **figure** shown above, a **table with one row per gland** (`<image>_glands.csv`) and a `summary.csv` with the verdict per image — in the `predictions/` folder.
+No annotations or datasets are needed. Use `--threshold` to change the malignancy cut-off (default 0.4, see [why](#why-the-cut-off-is-04-and-not-05)).
 
-**Data:** the *GlaS* challenge dataset (Warwick-QU, 165 colon-tissue images with expert outlines). It is not included here; download it from the challenge page.
-Model weights (`*.pth`) are also not included.
+### Not ready to ask? See the outputs first
+The figures above come from the model, and the matching tables are in [`results/examples/`](results/examples) (one CSV per image plus `summary.csv`).
+
+**Data used:** the *GlaS* challenge dataset (Warwick-QU, 165 colon-tissue images with expert outlines). It is not included here; it is available from the challenge page.
 
 <details>
 <summary><b>For developers</b></summary>
 
+*Training and evaluation code is included for transparency; you do not need it to use the models. Tests: `pytest -q` (33 tests).*
+
 **Code layout** (`src/glandnet/`): `model.py` (4-level U-Net, 2 output channels) · `losses.py` (border-weighted BCE + Dice + Tversky) · `postprocess.py` (threshold → remove small objects → connected-component glands) ·
-`metrics.py` (pixel and object-level metrics) · `data.py` (GlaS loading, reproducible 80/20 split) · `train.py` · `evaluate.py` · `classifier.py` (EfficientNet-B0 on gland crops, patient-grouped CV) · `visualize.py` (figures and tables).
+`metrics.py` (pixel and object-level metrics) · `predict.py` (the `glandnet-predict` command) · `data.py` (GlaS loading, reproducible 80/20 split) · `train.py` · `evaluate.py` · `classifier.py` (EfficientNet-B0 on gland crops, patient-grouped CV) · `visualize.py` (figures and tables).
 
 **Segmentation protocol.** Post-processing parameters (threshold, minimum object size, watershed footprint) are chosen by grid search on the 17-image validation split (selected: 0.65 / 25 / 22) and applied unchanged to test.
 

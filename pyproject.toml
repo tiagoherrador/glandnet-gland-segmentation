@@ -24,6 +24,7 @@ glandnet-train = "glandnet.train:main"
 glandnet-eval = "glandnet.evaluate:main"
 glandnet-classify = "glandnet.classifier:main"
 glandnet-visualize = "glandnet.visualize:main"
+glandnet-predict = "glandnet.predict:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

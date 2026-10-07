@@ -55,13 +55,8 @@ At 0.4, two of the three cancers missed at 0.5 are now caught (`testA_51`, `test
 - A cut-off chosen on this dataset will not transfer unchanged to another hospital, scanner or staining protocol; it would need to be re-checked there.
 - This is a research and portfolio project, **not a medical device**.
 
-## How to change it or reproduce it
+## How to change it
 
-The cut-off is a single constant: `DECISION_THRESHOLD = 0.4` in `src/glandnet/classifier.py`. Figures, tables and metrics all use it.
-
-```bash
-# cross-validated predictions + the sweep table above (results/threshold_sweep_oof.csv)
-glandnet-classify --data-root data --out results --oof-only
-# evaluate a trained classifier on the test set with the full pipeline (results/threshold_sweep_test_pred.csv)
-glandnet-classify --data-root data --out results --eval-only models/gland_classifier_effb0.pth --seg-checkpoint models/unet4l.pth
-```
+The cut-off is a single constant, `DECISION_THRESHOLD = 0.4` in `src/glandnet/classifier.py`, used by the figures, tables and metrics.
+When running the trained models you can also override it per run: `glandnet-predict --images slide.png --threshold 0.5`.
+The cross-validation and test sweeps behind the tables above are saved in `results/threshold_sweep_oof.csv` and `results/threshold_sweep_test_pred.csv`.
