@@ -1,0 +1,88 @@
+device=mps train glands=765 test(gt)=753 test(pred)=2183
+patients shared between train and test: [1, 2, 3, 4, 5, 7, 9, 10, 11, 13, 15]
+fold 1/5: train imgs=83 val imgs=2
+  epoch 1/12 loss=0.8619
+  epoch 2/12 loss=0.3136
+  epoch 3/12 loss=0.1703
+  epoch 4/12 loss=0.1067
+  epoch 5/12 loss=0.0853
+  epoch 6/12 loss=0.0449
+  epoch 7/12 loss=0.0531
+  epoch 8/12 loss=0.0604
+  epoch 9/12 loss=0.0612
+  epoch 10/12 loss=0.0528
+  epoch 11/12 loss=0.0394
+  epoch 12/12 loss=0.0227
+fold 2/5: train imgs=72 val imgs=13
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+  epoch 1/12 loss=1.0465
+  epoch 2/12 loss=0.2340
+  epoch 3/12 loss=0.0994
+  epoch 4/12 loss=0.1404
+  epoch 5/12 loss=0.1125
+  epoch 6/12 loss=0.0348
+  epoch 7/12 loss=0.0594
+  epoch 8/12 loss=0.0526
+  epoch 9/12 loss=0.0414
+  epoch 10/12 loss=0.0458
+  epoch 11/12 loss=0.0547
+  epoch 12/12 loss=0.0725
+fold 3/5: train imgs=57 val imgs=28
+  epoch 1/12 loss=1.0205
+  epoch 2/12 loss=0.3352
+  epoch 3/12 loss=0.2190
+  epoch 4/12 loss=0.1119
+  epoch 5/12 loss=0.0740
+  epoch 6/12 loss=0.0473
+  epoch 7/12 loss=0.0312
+  epoch 8/12 loss=0.0326
+  epoch 9/12 loss=0.0241
+  epoch 10/12 loss=0.0228
+  epoch 11/12 loss=0.0348
+  epoch 12/12 loss=0.0157
+fold 4/5: train imgs=60 val imgs=25
+  epoch 1/12 loss=0.8948
+  epoch 2/12 loss=0.2548
+  epoch 3/12 loss=0.1614
+  epoch 4/12 loss=0.1454
+  epoch 5/12 loss=0.1150
+  epoch 6/12 loss=0.0874
+  epoch 7/12 loss=0.0823
+  epoch 8/12 loss=0.0641
+  epoch 9/12 loss=0.0159
+  epoch 10/12 loss=0.0369
+  epoch 11/12 loss=0.0511
+  epoch 12/12 loss=0.0300
+fold 5/5: train imgs=68 val imgs=17
+  epoch 1/12 loss=0.8308
+  epoch 2/12 loss=0.2260
+  epoch 3/12 loss=0.1813
+  epoch 4/12 loss=0.0954
+  epoch 5/12 loss=0.0961
+  epoch 6/12 loss=0.0571
+  epoch 7/12 loss=0.0328
+  epoch 8/12 loss=0.0294
+  epoch 9/12 loss=0.0314
+  epoch 10/12 loss=0.0417
+  epoch 11/12 loss=0.0092
+  epoch 12/12 loss=0.0165
+CV (pooled out-of-fold): {'gland_auc': 0.8761191747302859, 'gland_acc': 0.7699346405228759, 'n_glands': 765, 'n_images': 85, 'image_acc': 0.9176470588235294, 'image_f1': 0.9230769230769231, 'image_auc': 0.9617117117117118, 'image_auc_ci95': [0.9160624410191884, 0.9937177400468384]}
+final fit
+  epoch 1/12 loss=1.1489
+  epoch 2/12 loss=0.2258
+  epoch 3/12 loss=0.1138
+  epoch 4/12 loss=0.1097
+  epoch 5/12 loss=0.0813
+  epoch 6/12 loss=0.0448
+  epoch 7/12 loss=0.0440
+  epoch 8/12 loss=0.0161
+  epoch 9/12 loss=0.0365
+  epoch 10/12 loss=0.0132
+  epoch 11/12 loss=0.0127
+  epoch 12/12 loss=0.0260
+gt A {'gland_auc': 0.9587131050767415, 'gland_acc': 0.9059180576631259, 'n_glands': 659, 'n_images': 60, 'image_acc': 0.9666666666666667, 'image_f1': 0.9629629629629629, 'image_auc': 0.9988776655443322, 'image_auc_ci95': [0.9932659932659933, 1.0]}
+gt B {'gland_auc': 0.9788011695906433, 'gland_acc': 0.9361702127659575, 'n_glands': 94, 'n_images': 20, 'image_acc': 1.0, 'image_f1': 1.0, 'image_auc': 1.0, 'image_auc_ci95': [1.0, 1.0]}
+gt A+B {'gland_auc': 0.9677465437056555, 'gland_acc': 0.9096945551128818, 'n_glands': 753, 'n_images': 80, 'image_acc': 0.975, 'image_f1': 0.9767441860465116, 'image_auc': 0.9993714644877436, 'image_auc_ci95': [0.996249941369606, 1.0]}
+pred A {'gland_auc': 0.8814059072827986, 'gland_acc': 0.7684210526315789, 'n_glands': 1615, 'n_images': 60, 'image_acc': 0.85, 'image_f1': 0.8, 'image_auc': 0.9977553310886644, 'image_auc_ci95': [0.9897142857142857, 1.0]}
+pred B {'gland_auc': 0.8267752148349163, 'gland_acc': 0.7235915492957746, 'n_glands': 568, 'n_images': 20, 'image_acc': 0.9, 'image_f1': 0.9333333333333333, 'image_auc': 0.96875, 'image_auc_ci95': [0.859375, 1.0]}
+pred A+B {'gland_auc': 0.8823272780257055, 'gland_acc': 0.7567567567567568, 'n_glands': 2183, 'n_images': 80, 'image_acc': 0.8625, 'image_f1': 0.8533333333333334, 'image_auc': 0.9912005028284098, 'image_auc_ci95': [0.9731401529579959, 1.0]}

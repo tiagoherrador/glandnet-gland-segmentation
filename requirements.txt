@@ -1,0 +1,13 @@
+torch
+torchvision
+timm
+albumentations==1.4.3
+numpy
+scipy
+scikit-image
+scikit-learn
+pandas
+matplotlib
+Pillow
+tqdm
+jupyter
