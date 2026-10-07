@@ -18,7 +18,7 @@ Protocol
 
 Usage
 -----
-python train_gland_classifier.py --data-root ../data --pred-dir ../predictions_unet4L --out ../results
+glandnet-classify --data-root data --pred-dir predictions_unet4L --out results
 """
 import argparse, json, random
 from pathlib import Path

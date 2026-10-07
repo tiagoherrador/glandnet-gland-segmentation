@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "glandnet"
+version = "0.2.0"
+description = "Gland segmentation (U-Net) and benign/malignant classification on GlaS colon histology"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [{name = "Tiago Alejo Herrador"}]
+dependencies = [
+  "torch", "timm", "numpy", "scipy", "scikit-image", "scikit-learn",
+  "pandas", "pillow", "opencv-python-headless", "tqdm",
+]
+
+[project.optional-dependencies]
+train = ["albumentations==1.4.3"]
+dev = ["pytest"]
+
+[project.scripts]
+glandnet-train = "glandnet.train:main"
+glandnet-eval = "glandnet.evaluate:main"
+glandnet-classify = "glandnet.classifier:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

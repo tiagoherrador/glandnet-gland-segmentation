@@ -1,76 +1,65 @@
-# GlandNet – gland segmentation in colon histology (GlaS)
+# GlandNet – gland segmentation and grading in colon histology (GlaS)
 
-U-Net family for **gland instance segmentation** on the GlaS (Warwick-QU) colon-histology challenge dataset
-(85 train / 60 test-A / 20 test-B images), with iterative improvements and watershed post-processing.
+[![tests](https://github.com/tiagoherrador/glandnet-gland-segmentation/actions/workflows/ci.yml/badge.svg)](https://github.com/tiagoherrador/glandnet-gland-segmentation/actions)
+
+PyTorch package + CLIs for **gland instance segmentation** (4-level U-Net with an interior + border output, watershed to split touching glands)
+and **benign/malignant classification** on the GlaS (Warwick-QU) colon-histology challenge dataset (85 train / 60 test-A / 20 test-B images).
 
 ![Example](assets/example_testB_segmentation.png)
 
-## Approach
-| Iteration | Change |
-|---|---|
-| v1 | U-Net 3 levels + **Tversky loss** + watershed to split touching glands |
-| v1.1 | + **edge-weighted BCE** |
-| v2 | U-Net **4 levels, multi-channel output (interior + border)** |
-| v2.1 | border weighting (`border8`), tuned min-size / watershed footprint |
+## Segmentation results (leakage-free protocol)
 
-Metrics: pixel **Dice**, **Hausdorff distance** and **object-level F1** (matching predicted vs. ground-truth glands).
+Post-processing parameters (probability threshold, min object size, watershed footprint) are chosen by grid search **on the 20 % validation split only** and then
+applied unchanged to test A and B (`glandnet-eval`; selected: threshold 0.65, min size 25, footprint 22).
 
-## Results (segmentation, from the notebook run)
+| Split | Images | Object Dice | Object F1 | Pixel Dice | Hausdorff |
+|---|---|---|---|---|---|
+| Validation (selection) | 17 | 0.887 | 0.827 | 0.926 | 33.5 |
+| **Test A** | 60 | 0.886 | 0.775 | 0.913 | 35.9 |
+| **Test B** | 20 | 0.805 | 0.693 | 0.891 | 40.8 |
+| Test A+B | 80 | 0.866 | 0.755 | 0.908 | 37.1 |
 
-| Subset | Dice | Hausdorff | Object F1 |
-|---|---|---|---|
-| Validation (20 % of train) | 0.879 | 45.8 | 0.735 |
-| Test A | 0.855 | 45.5 | 0.529 |
-| Test B | 0.780 | 42.4 | 0.456 |
+*Object F1*: a ground-truth gland is a hit if its best-matching predicted gland has Dice > 0.5; F1 = TP / (TP + (FP + FN)/2).
+Test B (poorly differentiated, irregular glands) is clearly harder, and object-level F1 is well below pixel Dice — splitting touching glands remains the main failure mode.
+The checkpoint was trained with the original notebook recipe (`notebooks/exploratory/`); `glandnet-train` is a refactor of that recipe and has **not been re-run end to end**.
 
-**Caveats – please read**
-- Post-processing hyper-parameters (probability threshold, min object size, watershed footprint) were selected *per test subset*
-  in the notebook, so the Test A/B numbers are optimistic.
-- Object-level F1 is clearly lower than pixel Dice: touching glands are still the main failure mode.
-
-## Benign / malignant classifier (corrected)
-
-The notebook's original EfficientNet-B0 classifier (and its heat-map/report cells, now deleted from the notebook) was **invalid**: it used
-test-A = benign / test-B = malignant as labels (both subsets contain both grades) and was trained and evaluated on the same test images.
-The corrected version is `classifier/train_gland_classifier.py`:
-
-- Labels = image-level grade from `Grade.csv`, applied to every gland (**weak labels**: GlaS does not grade individual glands).
-- Trained on the **train split only** (765 gland crops from GT masks). Fixed protocol: 12 epochs, threshold 0.5 — nothing tuned on test.
-- Validation: 5-fold `StratifiedGroupKFold` grouped by patient; predictions pooled out-of-fold (folds are very uneven because a few patients have many images).
-- Image prediction = mean gland probability. Test evaluated once, in two settings: ground-truth gland masks, and the **full pipeline** (U-Net predicted glands).
+## Benign / malignant classifier
+EfficientNet-B0 on gland crops, **labels from `Grade.csv`** (image-level grade applied to each gland → weak labels), trained on the train split only,
+5-fold patient-grouped CV, fixed 12 epochs and 0.5 threshold, test evaluated once (`glandnet-classify`).
 
 | Setting | Images | Image AUC (95 % bootstrap CI) | Image acc. | Gland AUC |
 |---|---|---|---|---|
 | Cross-validation, train (out-of-fold) | 85 | 0.962 (0.916–0.994) | 0.92 | 0.876 |
 | Test A+B · GT masks | 80 | 0.999 (0.996–1.0) | 0.975 | 0.968 |
-| Test A+B · predicted masks (full pipeline) | 80 | 0.991 (0.973–1.0) | 0.863 | 0.882 |
-| Test A · predicted | 60 | 0.998 | 0.85 | 0.881 |
-| Test B · predicted | 20 | 0.969 (0.859–1.0) | 0.90 | 0.827 |
+| Test A+B · U-Net predicted masks (full pipeline) | 80 | 0.991 (0.973–1.0) | 0.863 | 0.882 |
 
-**How to read this**
-- **Likely optimistic.** 11 patients appear in both train and test (this is how GlaS is split), so the model may partly recognise patient-specific
-  tissue. Test sets are tiny (60 and 20 images). Image-level numbers near 1.0 should not be read as clinical-grade performance.
-- With predicted masks the *ranking* of images stays excellent (AUC 0.99) but accuracy drops to 0.86 at the fixed 0.5 threshold:
-  the U-Net over-segments (2,183 predicted glands vs. 753 ground-truth), and benign images end up with mean probabilities just under 0.5.
-  No threshold was tuned on test, so this is reported as-is.
-- Gland-level metrics are against the weak image-level label and are therefore a lower bound on true gland-level accuracy.
+**Read with care:** 11 patients appear in both train and test (how GlaS is split), so the model may partly recognise patient-specific tissue; test sets are tiny; gland-level labels are weak.
+With predicted masks the image ranking stays excellent but accuracy drops at the fixed 0.5 threshold because the U-Net over-segments (2,183 predicted vs 753 true glands).
+The predicted masks used here come from the original notebook run, whose post-processing parameters were tuned on test. Per-image/per-gland predictions are in `results/`.
 
-Outputs (per-gland and per-image predictions, `metrics.json`, run log) are in `results/`. Run it with:
+## Quick start
 ```bash
-python classifier/train_gland_classifier.py --data-root data --pred-dir predictions_unet4L --out results --epochs 12 --ckpt models/gland_classifier_effb0.pth
+pip install -e ".[train,dev]"
+# put GlaS under data/{train,test}/{images,masks} and data/metadata/Grade.csv
+glandnet-train    --data-root data --out-dir models          # U-Net, 80/20 split, seed 42
+glandnet-eval     --data-root data --checkpoint models/unet4l.pth
+glandnet-classify --data-root data --pred-dir predictions --out results
+pytest -q                                                    # 17 tests
 ```
-`--pred-dir` needs the `<name>_labels_ws.npy` instance masks written by the segmentation notebook's inference cell.
 
-## Repo layout
-- `notebooks/01_glandnet2_segmentation_pipeline.ipynb` – segmentation training, evaluation, inference, reporting (classifier cells removed, see above).
-- `classifier/train_gland_classifier.py` – corrected benign/malignant classifier.
-- `results/` – classifier metrics and predictions.
-- `notebooks/exploratory/02_deep_features_efficientnet.ipynb` – early deep-feature experiments.
+## Code layout
+`src/glandnet/` — `model.py` (U-Net), `losses.py` (BCE with border weight + Dice + Tversky), `postprocess.py` (threshold → clean → watershed),
+`metrics.py` (pixel / object metrics), `data.py` (GlaS I/O, reproducible split), `train.py`, `evaluate.py`, `classifier.py`.
+`tests/` covers the model shape, loss behaviour, watershed splitting of touching glands, metric edge cases, the data split and `Grade.csv` parsing.
+
+## Decisions and lessons
+- **Iteration path:** U-Net 3 levels + Tversky → + edge-weighted BCE → 4 levels with a border channel (the final model). The border channel is what lets watershed separate adjacent glands.
+- **Tuning on test is a leak.** The first version swept thresholds on test A/B and reported the best. The package selects on validation instead; the numbers above are the honest ones.
+- **A benign/malignant classifier needs real labels.** The first attempt used test-A = benign / test-B = malignant (wrong — both subsets contain both grades) and trained on test images. It was removed and replaced by the `Grade.csv`-based version above.
+- **Patient-level structure matters:** splits are grouped by patient for CV, and the train/test patient overlap is reported rather than hidden.
 
 ## Data
-Download GlaS from the Warwick-QU challenge page and place under `data/` (`train`, `test`, `Grade.csv`). The dataset is not redistributed here.
-
-> **Note:** originally developed and run in Google Colab. Google-Drive mounting cells were removed, Drive paths were rewritten as relative paths and outputs were stripped (figures of the original run are in `assets/`). The paths/cleanup were **not re-executed** after this change, so expect to adjust paths.
+Download GlaS from the Warwick-QU challenge page; it is not redistributed here. Model weights (`*.pth`) are not versioned.
 
 ## Author
-Tiago Alejo Herrador
+Tiago Alejo Herrador — MIT licensed.
