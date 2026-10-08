@@ -1,7 +1,7 @@
 # Why very small detections are ignored (minimum gland size)
 
 **Short version.** The gland finder sometimes marks tiny patches of tissue that are not glands at all. Each of those fragments then gets its own malignancy score, and the image verdict is the average of all its glands,
-so a few meaningless fragments can drag a clearly malignant image below the cut-off. We now **discard detections smaller than 1,000 pixels** (about 0.4 % of the image) before classifying anything.
+so a few meaningless fragments can drag a clearly malignant image below the cut-off. I now **discard detections smaller than 1,000 pixels** (about 0.4 % of the image) before classifying anything.
 The value was chosen on a validation set, not copied from a paper — the literature supports the idea of filtering spurious predictions, but gives no number (see below).
 
 ## The case that revealed the problem: `testA_38`
@@ -26,11 +26,11 @@ Verified peer-reviewed sources are listed in [references.md](references.md). In 
 - **Glands are easy to confuse with other structures.** Gland-segmentation papers point out the difficulty of telling glandular from non-glandular structures ("strong mimics") and propose disregarding unreliable predictions (Chen et al. 2017; Graham et al. 2019).
 - **Gland-level results are used to decide on the whole image.** Pipelines that segment glands first and classify afterwards (Awan et al. 2017; Ho et al. 2022) build their final decision on the detected glands, so (our reading) spurious detections feed directly into it.
 - **No paper gives a minimum gland size.** None of the sources prescribes a size in pixels or µm², and none compares size-filtering rules for gland detection. The right value depends on the image resolution, the magnification and the model,
-  so it has to be **chosen empirically** — which is what we did.
+  so it has to be **chosen empirically** — which is what I did.
 
 ## How the value was chosen
 
-We swept the minimum size on the **validation split only** (17 images, 186 annotated glands; probability cut-off 0.65), and kept the value with the best object-level F1.
+I swept the minimum size on the **validation split only** (17 images, 186 annotated glands; probability cut-off 0.65), and kept the value with the best object-level F1.
 Sizes are in pixels on the 512 × 512 working image (262,144 px): 1,000 px is 0.38 % of it.
 
 | Minimum size (px) | Object F1 | Glands predicted | Spurious detections |

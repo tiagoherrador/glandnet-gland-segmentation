@@ -1,7 +1,7 @@
 # Why the model calls an image "malignant" at 40 % and not 50 %
 
-**Short version.** GlandNet gives every gland a probability of being malignant. We call a gland — and an image — *malignant* when that probability is **0.4 or higher**
-(not the usual 0.5). We did this on purpose, to **reduce missed cancers (false negatives)**, accepting a few more false alarms (false positives).
+**Short version.** GlandNet gives every gland a probability of being malignant. I call a gland — and an image — *malignant* when that probability is **0.4 or higher**
+(not the usual 0.5). I did this on purpose, to **reduce missed cancers (false negatives)**, accepting a few more false alarms (false positives).
 
 ## Why missed cancers matter more than false alarms
 
@@ -13,7 +13,7 @@ The two possible mistakes do not cost the same:
 | **False positive** | A benign image is called malignant | A pathologist takes a second look and clears it. Annoying and a bit of extra work, but safe. |
 
 A tool that helps screen or prioritise slides should therefore lean towards *flagging too much* rather than *missing something*: a human reviews everything it flags,
-but nobody reviews what it declares healthy. In medical terms, we favour **sensitivity** (share of malignant cases caught) over **specificity** (share of benign cases correctly cleared).
+but nobody reviews what it declares healthy. In medical terms, I favour **sensitivity** (share of malignant cases caught) over **specificity** (share of benign cases correctly cleared).
 
 ## What changing the cut-off does
 
@@ -47,8 +47,8 @@ Once those detections are filtered, the cautious cut-off no longer changes anyth
 ## How honest is this number?
 
 - **0.4 was a judgement call, not the output of an optimisation.** It was proposed after seeing that, in an earlier version of the evaluation, the missed cancers sat just below 0.5.
-  Because we had already seen test results when choosing it, test-set figures are **not a clean out-of-sample estimate**. The cross-validation table is the fairer reference:
-  at 0.4 we should expect to catch roughly **9 in 10** cancers, not all of them.
+  Because I had already seen test results when choosing it, test-set figures are **not a clean out-of-sample estimate**. The cross-validation table is the fairer reference:
+  at 0.4 I'd expect to catch roughly **9 in 10** cancers, not all of them.
 - **0.4 reduces missed cancers; it does not eliminate them.** If the goal is ≥ 95 % sensitivity, the cross-validation says a cut-off near 0.3 is needed, with many more false alarms.
 - **The image verdict is the average of its glands**, which can dilute a few very suspicious glands among many normal ones. Filtering tiny spurious detections removes the worst cases of this; the dilution risk remains in principle.
   A rule like "malignant if *any* gland is clearly malignant" would be even more sensitive; it is not implemented.

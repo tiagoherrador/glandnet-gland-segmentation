@@ -9,7 +9,7 @@
 When a doctor suspects colon cancer, a pathologist looks at a thin slice of tissue under the microscope. The first thing they check is the **glands**:
 small tube-shaped structures that line the colon. In healthy tissue they look orderly; in cancer they become crowded, irregular and distorted.
 
-This project automates that first look in two steps:
+I built this project to automate that first look, in two steps:
 
 1. **Find the glands.** A neural network (a *U-Net*) outlines every gland in the picture.
 2. **Judge each gland.** A second network looks at each gland on its own and estimates how likely it is to be malignant.
@@ -57,9 +57,9 @@ Out of the 80 test images, **1 is wrong: a false alarm. No malignant image was m
 
 ![A false alarm](assets/pipeline_testA_44.png)
 
-### A mistake we found and fixed: tiny detections
+### A mistake I found and fixed: tiny detections
 `testA_38` is malignant and has a single real gland, which the model classified as malignant with probability 1.00. But the model also marked four small patches of connective tissue as "glands", and averaging them in pulled the image verdict below the cut-off — a cancer missed because of detections that were not glands.
-We now ignore detections smaller than 1,000 pixels (about 0.4 % of the image); see [why and how the value was chosen](docs/min_gland_size.md), including the peer-reviewed literature behind the idea.
+I now ignore detections smaller than 1,000 pixels (about 0.4 % of the image); see [why and how I chose that value](docs/min_gland_size.md), including the peer-reviewed literature behind the idea.
 
 | Before (5 detections, 1 real gland) | After the minimum-size filter |
 |---|---|
@@ -87,46 +87,45 @@ The "images called correctly" use the cut-off of 0.4 (below). **Read the test ro
 - **Dice (0 to 1)** — how much the model's outline overlaps the experts' outline. 1 is a perfect copy; 0.9 is very close.
 - **F1 (0 to 1)** — counts glands one by one: did the model find this gland, and did it avoid inventing ones that aren't there? It is stricter than Dice because a missed or merged gland hurts.
 - **AUC (0.5 to 1)** — if you pick one malignant and one benign image at random, how often does the model give the malignant one the higher score? 0.5 is a coin flip, 1.0 is always right.
-- **Sensitivity** — of all the malignant images, the share the model catches. *Missing a cancer is the costly mistake, so this is the number we care most about.*
+- **Sensitivity** — of all the malignant images, the share the model catches. *Missing a cancer is the costly mistake, so this is the number I care about most.*
 - **Specificity** — of all the benign images, the share the model correctly clears. When it is low, healthy images get flagged and someone has to double-check them.
 
 ## Why the cut-off is 0.4 and not 0.5
 
-The model gives each gland (and each image) a probability of being malignant, and we have to decide above which probability we raise a flag. The usual choice is 0.5. **We use 0.4 on purpose**, because the two kinds of mistakes are not equally serious:
+The model gives each gland (and each image) a probability of being malignant, and I have to decide above which probability to raise a flag. The usual choice is 0.5. **I use 0.4 on purpose**, because the two kinds of mistakes are not equally serious:
 
 - a **missed cancer** (false negative) can delay a diagnosis and its treatment;
 - a **false alarm** (false positive) only means a pathologist takes another look.
 
-So we would rather flag a little too much than miss something. A lower cut-off makes the model more suspicious:
+So I'd rather flag a little too much than miss something. A lower cut-off makes the model more suspicious:
 
 ![Trade-off between catching cancers and false alarms](assets/threshold_tradeoff.png)
 
 In cross-validation, going from 0.5 to 0.4 catches **2 more cancers out of 48** at the price of **5 more false alarms out of 37 healthy images**. It reduces missed cancers; it does not eliminate them. (On the test images, after small detections are discarded, 0.4 and 0.5 give the same result; the trade-off is clearest in cross-validation.)
-Full numbers, the honest caveats and how to change the cut-off are in **[docs/decision_threshold.md](docs/decision_threshold.md)**.
+Full numbers, the caveats and how to change the cut-off are in **[docs/decision_threshold.md](docs/decision_threshold.md)**.
 
-## Things to keep in mind (honest limits)
+## Things to keep in mind
 
-- **The score looks better than it should.** In this public dataset, 11 patients contribute images to both the training and the test sets. The model may partly be recognising *that patient's tissue* rather than learning what malignancy looks like. Treat the AUC near 1.0 with caution.
 - **Small test sets.** 60 and 20 images are few; a couple of mistakes move the numbers noticeably.
-- **The "malignant / benign" label is for the whole image, not each gland.** The dataset only says whether an image is benign or malignant, so every gland in a malignant image is trained as "malignant", even if some of them look normal. That is why individual glands are judged less accurately than whole images (in cross-validation: AUC 0.88 per gland vs 0.96 per image).
 - **Neighbouring glands that touch can merge** into one big blob, which lowers the gland-by-gland score (F1).
 - **Tiny detections are ignored on purpose.** Regions under 1,000 pixels are discarded because they are mostly spurious; this also means a few genuinely small glands can be lost, and some spurious ones still get through (24 on the test set). See [docs/min_gland_size.md](docs/min_gland_size.md).
-- **The 0.4 cut-off was a judgement call**, chosen to favour catching cancers (see above). Because it was picked after seeing earlier test results, the test numbers are somewhat optimistic; the cross-validation numbers are the fairer guide.
-- **The image verdict is an average of its glands**, so a few very suspicious glands can be diluted by many normal ones.
+- **The 0.4 cut-off was my judgement call**, chosen to favour catching cancers (see above). Because it was picked after seeing earlier test results, the test numbers are somewhat optimistic; the cross-validation numbers are the fairer guide.
 
 ## How it works (the short version)
 
-1. **Outline.** The U-Net predicts, for every pixel, "is this gland?" and "is this a gland border?"; the two are combined into one gland map. Pixels above a probability threshold form the gland mask, and each separate connected region is counted as one gland. **Regions smaller than about 0.4 % of the image are discarded** as spurious detections ([why](docs/min_gland_size.md)). The threshold and the minimum size were chosen on a validation set, never on the test set.
+1. **Outline.** The U-Net predicts, for every pixel, "is this gland?" and "is this a gland border?"; the two are combined into one gland map. Pixels above a probability threshold form the gland mask, and each separate connected region is counted as one gland. **Regions smaller than about 0.4 % of the image are discarded** as spurious detections ([why](docs/min_gland_size.md)). I chose the threshold and the minimum size on a validation set, never on the test set.
 2. **Crop.** Each gland is cut out with a small margin.
 3. **Judge.** An EfficientNet-B0 network (pre-trained on everyday photos, then trained on gland crops) gives each crop a probability of being malignant. The image verdict is the average over its glands.
 
-## Get the trained models and try them
+## Want to try the models?
 
-### 1. Ask for the models
-The trained models are shared **on request**. Send an email to **tiago.alejo.h@hotmail.com** with the subject *"GlandNet models"* and a line about how you plan to use them.
-You will receive a package (about 140 MB) with the two model files, checksums to verify them, and short instructions. They are shared for research and evaluation purposes.
+I'd love for you to! I keep the trained models out of the repository, but I'm happy to share them — just ask.
 
-### 2. Run them on your own images
+### 1. Ask me for the models
+Send me an email at **tiago.alejo.h@hotmail.com** with the subject *"GlandNet models"* and a quick line about what you'd like to use them for (a few words is plenty).
+I'll reply with a small package (about 140 MB): the two model files, checksums so you can check that everything arrived intact, and short instructions. I share them for research and evaluation, so please don't pass them on.
+
+### 2. Try them on your own images
 ```bash
 pip install -e .
 # copy the two model files into models/   (names: unet4l.pth and gland_classifier_effb0.pth)
@@ -134,18 +133,18 @@ pip install -e .
 glandnet-predict --images my_slide.png            # one image
 glandnet-predict --images folder_with_slides/     # or a whole folder
 ```
-For every image you get the **figure** shown above, a **table with one row per gland** (`<image>_glands.csv`) and a `summary.csv` with the verdict per image — in the `predictions/` folder.
-No annotations or datasets are needed. Use `--threshold` to change the malignancy cut-off (default 0.4, see [why](#why-the-cut-off-is-04-and-not-05)).
+For every image you get the **figure** you saw above, a **table with one row per gland** (`<image>_glands.csv`) and a `summary.csv` with the verdict for each image, all in the `predictions/` folder.
+You don't need any annotations or datasets — just your image. If you'd like the model to be more (or less) cautious, change the cut-off with `--threshold` (I use 0.4; here's [why](#why-the-cut-off-is-04-and-not-05)).
 
-### Not ready to ask? See the outputs first
-The figures above come from the model, and the matching tables are in [`results/examples/`](results/examples) (one CSV per image plus `summary.csv`).
+### Want a peek first?
+The figures above come straight from the model, and the matching tables are in [`results/examples/`](results/examples) (one CSV per image plus `summary.csv`).
 
-**Data used:** the *GlaS* challenge dataset (Warwick-QU, 165 colon-tissue images with expert outlines). It is not included here; it is available from the challenge page.
+**Data I used:** the *GlaS* challenge dataset (Warwick-QU, 165 colon-tissue images with expert outlines). It isn't included here; you can get it from the challenge page.
 
 <details>
 <summary><b>For developers</b></summary>
 
-*Training and evaluation code is included for transparency; you do not need it to use the models. Tests: `pytest -q` (35 tests).*
+*I included the training and evaluation code for transparency; you don't need it to use the models. Tests: `pytest -q` (35 tests).*
 
 **Code layout** (`src/glandnet/`): `model.py` (4-level U-Net, 2 output channels) · `losses.py` (border-weighted BCE + Dice + Tversky) · `postprocess.py` (threshold → remove small objects → connected-component glands) ·
 `metrics.py` (pixel and object-level metrics) · `predict.py` (the `glandnet-predict` command) · `data.py` (GlaS loading, reproducible 80/20 split) · `train.py` · `evaluate.py` · `classifier.py` (EfficientNet-B0 on gland crops, patient-grouped CV) · `visualize.py` (figures and tables).
