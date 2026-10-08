@@ -1,6 +1,3 @@
 image,gland,size_px2,row_min,col_min,row_max,col_max,p_malignant,prediction
 testA_38,1,47951,0,0,176,377,1.0,malignant
-testA_38,2,472,272,660,301,683,0.1536,benign
-testA_38,3,718,317,662,343,724,0.0331,benign
-testA_38,4,814,353,753,404,775,0.0455,benign
-testA_38,5,1853,433,0,497,44,0.5077,malignant
+testA_38,2,1853,433,0,497,44,0.5077,malignant

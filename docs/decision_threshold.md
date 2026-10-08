@@ -33,24 +33,25 @@ Lowering the cut-off makes the model more suspicious: it catches more cancers bu
 Going from 0.5 to 0.4 catches **2 more cancers out of 48** and costs **5 more false alarms out of 37 benign images**. Going down to 0.3 would catch almost every cancer, but about 3 in 10 healthy
 images would be flagged. Where exactly to stop is a **clinical and operational decision** (how many extra reviews can the lab absorb?), not a purely statistical one; 0.4 is a middle path.
 
-**On the 80 held-out test images** (43 malignant, 37 benign), using the full pipeline (glands found by the model):
+**On the 80 held-out test images** (43 malignant, 37 benign), using the full pipeline — glands found by the model, with detections under 1,000 px discarded ([why](min_gland_size.md)):
 
 | Cut-off | Malignant caught | Benign cleared | Missed cancers | False alarms |
 |---|---|---|---|---|
-| 0.5 | 93.0 % (40/43) | 97.3 % (36/37) | 3 | 1 |
-| **0.4** | **97.7 % (42/43)** | **94.6 % (35/37)** | **1** | **2** |
-| 0.3 | 100 % (43/43) | 86.5 % (32/37) | 0 | 5 |
+| 0.4 (chosen) | 100 % (43/43) | 97.3 % (36/37) | 0 | 1 |
+| 0.5 | 100 % (43/43) | 97.3 % (36/37) | 0 | 1 |
+| 0.3 | 100 % (43/43) | 91.9 % (34/37) | 0 | 3 |
 
-At 0.4, two of the three cancers missed at 0.5 are now caught (`testA_51`, `testB_14`), at the price of one extra false alarm (`testB_4`). One cancer is still missed (`testA_38`, probability 0.35).
+On the test images, 0.4 and 0.5 now give exactly the same result. Earlier, with many spurious tiny detections diluting the image average, 0.4 rescued several cancers that 0.5 missed (at 0.5: 3 missed; at 0.4: 1 missed, 2 false alarms).
+Once those detections are filtered, the cautious cut-off no longer changes anything *on this test set* — so a good part of its earlier benefit was compensating for the detection problem. In cross-validation (ground-truth glands, no spurious detections), the cost and benefit of 0.4 are the ones in the table above.
 
 ## How honest is this number?
 
 - **0.4 was a judgement call, not the output of an optimisation.** It was proposed after seeing that, in an earlier version of the evaluation, the missed cancers sat just below 0.5.
-  Because we had already seen the test results when choosing it, the test-set figures above are **not a clean out-of-sample estimate**. The cross-validation table is the fairer reference:
+  Because we had already seen test results when choosing it, test-set figures are **not a clean out-of-sample estimate**. The cross-validation table is the fairer reference:
   at 0.4 we should expect to catch roughly **9 in 10** cancers, not all of them.
 - **0.4 reduces missed cancers; it does not eliminate them.** If the goal is ≥ 95 % sensitivity, the cross-validation says a cut-off near 0.3 is needed, with many more false alarms.
-- **The image verdict is the average of its glands**, which can dilute a few very suspicious glands among many normal ones (see `testB_14`: glands #2, #3 and #4 score 1.00 but the average is 0.47).
-  A rule like "malignant if *any* gland is clearly malignant" would be even more sensitive; it is not implemented yet.
+- **The image verdict is the average of its glands**, which can dilute a few very suspicious glands among many normal ones. Filtering tiny spurious detections removes the worst cases of this; the dilution risk remains in principle.
+  A rule like "malignant if *any* gland is clearly malignant" would be even more sensitive; it is not implemented.
 - **Labels are weak and patients overlap** between training and test (see the main README), so absolute numbers are optimistic.
 - A cut-off chosen on this dataset will not transfer unchanged to another hospital, scanner or staining protocol; it would need to be re-checked there.
 - This is a research and portfolio project, **not a medical device**.

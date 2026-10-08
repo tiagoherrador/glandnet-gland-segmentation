@@ -1,3 +1,3 @@
-selected on validation: {'thr': np.float64(0.65), 'min_size': 25, 'footprint': 22} {'dice_mean': 0.8873811020337664, 'hd_mean': 33.53018491365546, 'F1': 0.827127942811386, 'dice_pixel': 0.9256980661257748}
-test A {'dice_mean': 0.885980030248334, 'hd_mean': 35.89568696141209, 'F1': 0.7753448280927251, 'dice_pixel': 0.9132035985570713}
-test B {'dice_mean': 0.8050781722552458, 'hd_mean': 40.77951421562136, 'F1': 0.6934311256560018, 'dice_pixel': 0.8908225749398637}
+selected on validation: {'thr': np.float64(0.65), 'min_size': 1000, 'footprint': 22} {'dice_mean': 0.8943584017236724, 'hd_mean': 33.68183074649547, 'F1': 0.8859179374522628, 'dice_pixel': 0.925894617687109, 'n_gt': 186, 'n_pred': 161, 'n_extra': 5}
+test A {'dice_mean': 0.8858350990314783, 'hd_mean': 36.75733766177234, 'F1': 0.8781942009240135, 'dice_pixel': 0.9136255414201211, 'n_gt': 662, 'n_pred': 542, 'n_extra': 18}
+test B {'dice_mean': 0.8050781722552458, 'hd_mean': 40.77951421562136, 'F1': 0.7962067398486817, 'dice_pixel': 0.8912573434073672, 'n_gt': 119, 'n_pred': 104, 'n_extra': 6}

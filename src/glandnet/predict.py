@@ -18,7 +18,7 @@ from .model import UNet4L, pick_device
 from .visualize import glands_table, render_figure, run_pipeline, summary_row
 
 # Post-processing parameters selected on the validation split (see results/segmentation_metrics.json).
-DEFAULT_PARAMS = {"thr": 0.65, "min_size": 25, "footprint": 22}
+DEFAULT_PARAMS = {"thr": 0.65, "min_size": 1000, "footprint": 22}  # min_size: smaller regions are discarded as spurious
 UNET_FILE, CLASSIFIER_FILE = "unet4l.pth", "gland_classifier_effb0.pth"
 IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff"}
 

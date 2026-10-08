@@ -63,3 +63,15 @@ def test_watershed_does_not_change_the_binary_mask():
     prob = np.zeros((64, 64)); prob[10:30, 10:30] = 0.9; prob[40:60, 40:60] = 0.9
     raw = clean_mask((prob > 0.5).astype(np.uint8), min_size=5)
     assert ((segment(prob, 0.5, 5, 9) > 0) == (raw > 0)).all()
+
+
+def test_score_counts_spurious_detections_and_min_size_removes_them():
+    from glandnet.evaluate import score
+    gt = np.zeros((128, 128), np.uint8); gt[10:50, 10:50] = 1; gt[70:110, 70:110] = 1
+    prob = np.zeros((128, 128)); prob[10:50, 10:50] = 0.9; prob[70:110, 70:110] = 0.9; prob[60:66, 5:11] = 0.9  # speck on background
+    items = [(prob, gt, "x")]
+    loose = score(items, 0.5, 10, 9)
+    strict = score(items, 0.5, 100, 9)
+    assert (loose["n_gt"], loose["n_pred"], loose["n_extra"]) == (2, 3, 1)
+    assert (strict["n_gt"], strict["n_pred"], strict["n_extra"]) == (2, 2, 0)
+    assert strict["F1"] > loose["F1"]

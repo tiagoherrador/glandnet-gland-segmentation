@@ -34,3 +34,12 @@ def test_end_to_end_with_random_weights_writes_figure_and_tables(tmp_path):
     assert (out / "slide.png").stat().st_size > 1000 and (out / "slide_glands.csv").exists()
     s = pd.read_csv(out / "summary.csv")
     assert list(s["image"]) == ["slide"] and pd.isna(s.loc[0, "true_grade"])
+
+
+def test_default_params_match_the_validation_selected_ones():
+    """Guards against the shipped defaults drifting away from results/segmentation_metrics.json."""
+    import json
+    from pathlib import Path
+    from glandnet.predict import DEFAULT_PARAMS
+    res = Path(__file__).resolve().parents[1] / "results" / "segmentation_metrics.json"
+    assert json.load(open(res))["selected_on_validation"] == DEFAULT_PARAMS

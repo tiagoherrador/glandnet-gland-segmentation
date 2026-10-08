@@ -18,10 +18,16 @@ from torch.utils.data import DataLoader
 from .data import GlasEvalDataset, list_pairs, split_train_val
 from .metrics import dice_pixel, object_metrics
 from .model import UNet4L, pick_device
-from .postprocess import predict_prob_map, segment
+from skimage.measure import label as cc_label
+
+from .postprocess import gland_instances, predict_prob_map, segment
 
 THRESHOLDS = [round(t, 2) for t in np.linspace(0.3, 0.7, 9)]
-POSTPROC = [(15, 15), (20, 20), (25, 22), (25, 25)]  # (min_size, footprint_size)
+# Minimum gland size in pixels at 512 x 512 (262,144 px): 25 px = 0.01 % of the image ... 4,000 px = 1.5 %.
+# Predicted regions smaller than this are discarded as spurious detections (see docs/min_gland_size.md).
+MIN_SIZES = [15, 25, 50, 100, 250, 500, 1000, 2000, 4000]
+FOOTPRINT = 22  # watershed footprint: it does not change the gland mask, so it is not searched
+POSTPROC = [(m, FOOTPRINT) for m in MIN_SIZES]  # (min_size, footprint_size)
 
 
 def collect(model, pairs, device):
@@ -33,23 +39,35 @@ def collect(model, pairs, device):
 
 
 def score(items, thr, min_size, footprint):
-    rows = []
+    """Mean object/pixel metrics over images, plus detection counts summed over images:
+    n_gt (ground-truth glands), n_pred (predicted glands) and n_extra (predicted glands with < 10 % of their pixels
+    inside the annotation, i.e. spurious detections)."""
+    rows, n_gt = [], 0
+    n_pred = n_extra = 0
     for prob, gt, _ in items:
-        pred = (segment(prob, thr, min_size, footprint) > 0).astype(np.uint8)
+        inst = gland_instances(segment(prob, thr, min_size, footprint))
+        pred = (inst > 0).astype(np.uint8)
         m = object_metrics(pred, gt)
         m["dice_pixel"] = dice_pixel(pred, gt)
         rows.append(m)
-    return {k: float(np.mean([r[k] for r in rows])) for k in rows[0]}
+        ids = [i for i in np.unique(inst) if i > 0]
+        n_pred += len(ids)
+        n_extra += sum(1 for i in ids if (gt[inst == i] > 0).mean() < 0.1)
+        n_gt += int(cc_label(gt > 0).max())
+    out = {k: float(np.mean([r[k] for r in rows])) for k in rows[0]}
+    out.update(n_gt=n_gt, n_pred=n_pred, n_extra=n_extra)
+    return out
 
 
 def select_params(val_items):
-    """Grid search maximising object-level F1 on validation."""
-    best = None
+    """Grid search maximising object-level F1 on validation. Returns (best score, best params, full sweep)."""
+    best, sweep = None, []
     for thr, (ms, fp) in itertools.product(THRESHOLDS, POSTPROC):
-        s = score(val_items, thr, ms, fp)
-        if best is None or s["F1"] > best[0]["F1"]:
-            best = (s, dict(thr=thr, min_size=ms, footprint=fp))
-    return best
+        sc = score(val_items, thr, ms, fp)
+        sweep.append({"thr": thr, "min_size": ms, "footprint": fp, **sc})
+        if best is None or sc["F1"] > best[0]["F1"]:
+            best = (sc, dict(thr=thr, min_size=ms, footprint=fp))
+    return best[0], best[1], sweep
 
 
 def main():
@@ -67,18 +85,24 @@ def main():
     train_pairs = list_pairs(a.data_root, "train")
     _, va_idx = split_train_val(len(train_pairs), 0.2, a.seed)
     val_items = collect(model, [train_pairs[i] for i in va_idx], device)
-    val_score, params = select_params(val_items)
+    val_score, params, sweep = select_params(val_items)
     print("selected on validation:", params, val_score)
 
     res = {"selected_on_validation": params, "validation": val_score, "test": {}}
-    allitems = []
+    allitems, per_set = [], {}
     for sub in ("A", "B"):
         items = collect(model, list_pairs(a.data_root, "test", sub), device)
         allitems += items
+        per_set[sub] = items
         res["test"][sub] = score(items, params["thr"], params["min_size"], params["footprint"])
         print("test", sub, res["test"][sub])
     res["test"]["A+B"] = score(allitems, params["thr"], params["min_size"], params["footprint"])
+    # Reference only (NOT used for selection): the same test sets with the previous, very permissive minimum size (25 px)
+    old = dict(thr=params["thr"], min_size=25, footprint=params["footprint"])
+    res["test_reference_min_size_25"] = {"params": old, "A": score(per_set["A"], **old), "B": score(per_set["B"], **old), "A+B": score(allitems, **old)}
     Path(a.out).parent.mkdir(parents=True, exist_ok=True)
+    import pandas as pd
+    pd.DataFrame(sweep).to_csv(Path(a.out).parent / "validation_sweep.csv", index=False)
     json.dump(res, open(a.out, "w"), indent=2)
 
 

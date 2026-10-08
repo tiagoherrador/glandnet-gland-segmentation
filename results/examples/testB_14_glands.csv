@@ -1,8 +1,0 @@
-image,gland,size_px2,row_min,col_min,row_max,col_max,p_malignant,prediction
-testB_14,1,9287,0,88,143,220,0.069,benign
-testB_14,2,57365,0,264,306,550,1.0,malignant
-testB_14,3,54861,0,521,423,775,1.0,malignant
-testB_14,4,2106,0,686,38,769,0.998,malignant
-testB_14,5,235,124,120,137,149,0.0661,benign
-testB_14,6,102,182,252,193,270,0.1576,benign
-testB_14,7,8239,437,638,521,775,0.0026,benign
