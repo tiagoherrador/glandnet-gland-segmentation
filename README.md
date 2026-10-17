@@ -4,7 +4,7 @@
 
 > **Research and portfolio project — not a medical device.** It has never been tested on real patients and must not be used to diagnose anything.
 
-## The idea in plain words
+## What this project is
 
 When a doctor suspects colon cancer, a pathologist looks at a thin slice of tissue under the microscope. The first thing they check is the **glands**:
 small tube-shaped structures that line the colon. In healthy tissue they look orderly; in cancer they become crowded, irregular and distorted.
@@ -15,6 +15,18 @@ I built this project to automate that first look, in two steps:
 2. **Judge each gland.** A second network looks at each gland on its own and estimates how likely it is to be malignant.
 
 The result is an annotated picture, a results table, and a verdict for the whole image — all in one go.
+
+## The short version
+
+All numbers are on the 80 test images of the public GlaS dataset, which the model never saw during training.
+
+| Question | What I found |
+|---|---|
+| Does it find the glands? | **Yes, well.** Its outlines overlap the experts' with a Dice of **0.89** on test set A and 0.81 on the harder set B. |
+| Can it tell malignant from benign tissue? | **Yes, on this benchmark.** 79 of 80 test images are called correctly, with **no cancer missed** and one false alarm. |
+| Should I trust that near-perfect score? | **Not fully.** 80 images is few, and some patients appear in both training and test. Cross-validation on the training images (92 % of cancers caught, 84 % of healthy images cleared) is the more realistic preview. |
+| Why flag at 0.4 instead of 0.5? | **Because a missed cancer costs more than a false alarm.** In cross-validation, 0.4 catches 2 more cancers out of 48 at the price of 5 more false alarms out of 37. |
+| What went wrong along the way? | Tiny false "glands" diluted the image verdict and hid one cancer. A minimum gland size, chosen on validation images, fixed it. |
 
 ## What the model gives you
 
@@ -42,7 +54,7 @@ And `results/examples/summary.csv` has one line per image — how many glands we
 | testA_59 | 8 | 8 | malignant | malignant | yes |
 | testB_11 | 5 | 5 | malignant | malignant | yes |
 | testA_44 | 7 | 4 | malignant | benign | **no** (false alarm) |
-| testA_38 | 2 | 2 | malignant | malignant | yes (see below) |
+| testA_38 | 2 | 2 | malignant | malignant | yes (see step 2) |
 
 More examples — a healthy image and a malignant one from the second test set:
 
@@ -50,14 +62,25 @@ More examples — a healthy image and a malignant one from the second test set:
 |---|---|
 | ![benign](assets/pipeline_testA_33.png) | ![malignant](assets/pipeline_testB_11.png) |
 
-### When it gets it wrong
-Out of the 80 test images, **1 is wrong: a false alarm. No malignant image was missed** (with the cautious cut-off and the minimum gland size described below).
+## How it works
+
+1. **Outline.** The U-Net predicts, for every pixel, "is this gland?" and "is this a gland border?"; the two are combined into one gland map. Pixels above a probability threshold form the gland mask, and each separate connected region is counted as one gland. **Regions smaller than about 0.4 % of the image are discarded** as spurious detections ([why](docs/min_gland_size.md)). I chose the threshold and the minimum size on a validation set, never on the test set.
+2. **Crop.** Each gland is cut out with a small margin.
+3. **Judge.** An EfficientNet-B0 network (pre-trained on everyday photos, then trained on gland crops) gives each crop a probability of being malignant. The image verdict is the average over its glands.
+
+## Following the project step by step
+
+<details>
+<summary><b>Show the four steps</b> (the one mistake on the test set, the tiny-detection fix, full results, the choice of cut-off)</summary>
+
+### 1. When it gets it wrong
+Out of the 80 test images, **1 is wrong: a false alarm. No malignant image was missed** (with the cautious cut-off and the minimum gland size of steps 2 and 4).
 
 `testA_44` is benign, but the model calls it malignant. The glands were found correctly — the mistake is in judging them: the model marks several large, elongated glands as malignant.
 
 ![A false alarm](assets/pipeline_testA_44.png)
 
-### A mistake I found and fixed: tiny detections
+### 2. A mistake I found and fixed: tiny detections
 `testA_38` is malignant and has a single real gland, which the model classified as malignant with probability 1.00. But the model also marked four small patches of connective tissue as "glands", and averaging them in pulled the image verdict below the cut-off — a cancer missed because of detections that were not glands.
 I now ignore detections smaller than 1,000 pixels (about 0.4 % of the image); see [why and how I chose that value](docs/min_gland_size.md), including the peer-reviewed literature behind the idea.
 
@@ -65,17 +88,17 @@ I now ignore detections smaller than 1,000 pixels (about 0.4 % of the image); se
 |---|---|
 | ![before](assets/testA_38_before_size_filter.png) | ![after](assets/pipeline_testA_38.png) |
 
-## How well does it work?
+### 3. How well does it work?
 
 All numbers below are on images the model **never saw during training** (the 80 test images of the public GlaS challenge dataset).
 
-### Finding the glands
+#### Finding the glands
 | Test set | How well the outlines match the experts' (Dice) | How many individual glands were correctly found (F1) |
 |---|---|---|
 | Set A (60 images: 33 benign, 27 malignant) | **0.89** | **0.88** |
 | Set B (20 images: 16 malignant, 4 benign — harder) | 0.81 | 0.80 |
 
-### Judging the glands
+#### Judging the glands
 | | Ranks malignant above benign (AUC) | Malignant images caught | Benign images correctly cleared | Images called correctly |
 |---|---|---|---|---|
 | During development (cross-validation on training images) | 0.96 | 92 % (44 of 48) | 84 % (31 of 37) | 88 % |
@@ -83,14 +106,7 @@ All numbers below are on images the model **never saw during training** (the 80 
 
 The "images called correctly" use the cut-off of 0.4 (below). **Read the test row with caution:** an AUC of 1.00 on 80 images, with some patients present in both training and test, is a sign of an easy benchmark more than of clinical-grade performance. The development row (cross-validation) is the more realistic preview.
 
-**What the metrics mean**
-- **Dice (0 to 1)** — how much the model's outline overlaps the experts' outline. 1 is a perfect copy; 0.9 is very close.
-- **F1 (0 to 1)** — counts glands one by one: did the model find this gland, and did it avoid inventing ones that aren't there? It is stricter than Dice because a missed or merged gland hurts.
-- **AUC (0.5 to 1)** — if you pick one malignant and one benign image at random, how often does the model give the malignant one the higher score? 0.5 is a coin flip, 1.0 is always right.
-- **Sensitivity** — of all the malignant images, the share the model catches. *Missing a cancer is the costly mistake, so this is the number I care about most.*
-- **Specificity** — of all the benign images, the share the model correctly clears. When it is low, healthy images get flagged and someone has to double-check them.
-
-## Why the cut-off is 0.4 and not 0.5
+### 4. Why the cut-off is 0.4 and not 0.5
 
 The model gives each gland (and each image) a probability of being malignant, and I have to decide above which probability to raise a flag. The usual choice is 0.5. **I use 0.4 on purpose**, because the two kinds of mistakes are not equally serious:
 
@@ -104,20 +120,24 @@ So I'd rather flag a little too much than miss something. A lower cut-off makes 
 In cross-validation, going from 0.5 to 0.4 catches **2 more cancers out of 48** at the price of **5 more false alarms out of 37 healthy images**. It reduces missed cancers; it does not eliminate them. (On the test images, after small detections are discarded, 0.4 and 0.5 give the same result; the trade-off is clearest in cross-validation.)
 Full numbers, the caveats and how to change the cut-off are in **[docs/decision_threshold.md](docs/decision_threshold.md)**.
 
+</details>
+
+## What the metrics mean
+
+- **Dice (0 to 1)** — how much the model's outline overlaps the experts' outline. 1 is a perfect copy; 0.9 is very close.
+- **F1 (0 to 1)** — counts glands one by one: did the model find this gland, and did it avoid inventing ones that aren't there? It is stricter than Dice because a missed or merged gland hurts.
+- **AUC (0.5 to 1)** — if you pick one malignant and one benign image at random, how often does the model give the malignant one the higher score? 0.5 is a coin flip, 1.0 is always right.
+- **Sensitivity** — of all the malignant images, the share the model catches. *Missing a cancer is the costly mistake, so this is the number I care about most.*
+- **Specificity** — of all the benign images, the share the model correctly clears. When it is low, healthy images get flagged and someone has to double-check them.
+
 ## Things to keep in mind
 
 - **Small test sets.** 60 and 20 images are few; a couple of mistakes move the numbers noticeably.
 - **Neighbouring glands that touch can merge** into one big blob, which lowers the gland-by-gland score (F1).
 - **Tiny detections are ignored on purpose.** Regions under 1,000 pixels are discarded because they are mostly spurious; this also means a few genuinely small glands can be lost, and some spurious ones still get through (24 on the test set). See [docs/min_gland_size.md](docs/min_gland_size.md).
-- **The 0.4 cut-off was my judgement call**, chosen to favour catching cancers (see above). Because it was picked after seeing earlier test results, the test numbers are somewhat optimistic; the cross-validation numbers are the fairer guide.
+- **The 0.4 cut-off was my judgement call**, chosen to favour catching cancers (see step 4). Because it was picked after seeing earlier test results, the test numbers are somewhat optimistic; the cross-validation numbers are the fairer guide.
 
-## How it works (the short version)
-
-1. **Outline.** The U-Net predicts, for every pixel, "is this gland?" and "is this a gland border?"; the two are combined into one gland map. Pixels above a probability threshold form the gland mask, and each separate connected region is counted as one gland. **Regions smaller than about 0.4 % of the image are discarded** as spurious detections ([why](docs/min_gland_size.md)). I chose the threshold and the minimum size on a validation set, never on the test set.
-2. **Crop.** Each gland is cut out with a small margin.
-3. **Judge.** An EfficientNet-B0 network (pre-trained on everyday photos, then trained on gland crops) gives each crop a probability of being malignant. The image verdict is the average over its glands.
-
-## Want to try the models?
+## Try it yourself
 
 I'd love for you to! I keep the trained models out of the repository, but I'm happy to share them — just ask.
 
@@ -134,7 +154,7 @@ glandnet-predict --images my_slide.png            # one image
 glandnet-predict --images folder_with_slides/     # or a whole folder
 ```
 For every image you get the **figure** you saw above, a **table with one row per gland** (`<image>_glands.csv`) and a `summary.csv` with the verdict for each image, all in the `predictions/` folder.
-You don't need any annotations or datasets — just your image. If you'd like the model to be more (or less) cautious, change the cut-off with `--threshold` (I use 0.4; here's [why](#why-the-cut-off-is-04-and-not-05)).
+You don't need any annotations or datasets — just your image. If you'd like the model to be more (or less) cautious, change the cut-off with `--threshold` (I use 0.4; here's [why](#4-why-the-cut-off-is-04-and-not-05)).
 
 ### Want a peek first?
 The figures above come straight from the model, and the matching tables are in [`results/examples/`](results/examples) (one CSV per image plus `summary.csv`).
